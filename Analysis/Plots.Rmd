@@ -1,0 +1,52 @@
+---
+title: "Beta_intero_plots"
+output: html_document
+date: "2024-08-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes, furrr,
+               brms, faux,LRO.utilities,reticulate,
+               patchwork, glmmTMB, ggplot2, ggpubr, dplyr, emmeans, ggeffects)
+
+np <- import("numpy")
+source(here::here("scripts","plots.R"))
+```
+
+## Main plots:
+
+### Figure_1
+Psychophysical models for HRD and RRST tasks from example participant
+```{r}
+plot_1()
+```
+
+### Figure_2
+Psychophysical modelling of beta-blockade on cardioceptive and respiroceptive sensitivity (threshold, ɑ), and precision (slope, β)
+```{r}
+plot_2()
+```
+
+### Figure_3
+Ordered Beta Regression of Metacognition in HRD and RRST tasks
+```{r}
+plot_3()
+```
+
+## Supplementary plots:
+
+### S_1
+Effects of drug condition on mean heart rate and HRV metrics (RMSSD and LF/HF ratio)
+```{r}
+plot_s1()
+```
+
+
+### S_2
+Plot of individual predictive participant-level psychometric functions for HRD and RRST tasks
+```{r}
+qq = plot_s2()
+
+qq
+```

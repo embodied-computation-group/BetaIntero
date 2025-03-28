@@ -1,0 +1,284 @@
+---
+title: "Indi_drug"
+output: html_document
+date: "2024-08-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes, furrr,bridgesampling, brms, faux,LRO.utilities,reticulate)
+```
+
+
+## What does the control analysis do and does it even work in principle?
+
+### We conceptualize it in the following manner:
+
+### We have a set of paricipants (P) come in for 2 sessions. They get some intervention that changes they mean resting heart rate (MRHR) by some margin (HR_intervention) however the intervention might also change the threshold of the psychometric function of the HRD (real_alpha_dif). We can simulate this in the following manner:
+
+
+```{r}
+
+set.seed(123)
+
+source(here::here("Control analysis", "Simulate_control_agent.R"))
+
+# 20 participants
+subjects = 20
+
+HR_intervention = -5
+
+real_alpha_dif = -5
+
+#now we simulate the real underlying thresholds (alphas):
+alphas = data.frame(cbind(realalphas_ses1 = rnorm(subjects,-10,5),
+     realalphas_ses2 = rnorm(subjects,-10-real_alpha_dif,5)))
+
+#we also need them in real BPM here we just set the avg heart rate to 55. but same as above (important)
+real_thresholds = data.frame(cbind(alphas_ses1 = rnorm(subjects,55,5),
+                         alphas_ses2 = rnorm(subjects,55-real_alpha_dif,5)))
+
+#slopes of the psychometric
+betas = data.frame(cbind(beta_ses1 = rlnorm(subjects,2,0.2),
+                        beta_ses2 = rlnorm(subjects,2,0.2)))
+
+#lapses of the psychoemtric
+lapses = data.frame(cbind(lapse_ses1 = brms::inv_logit_scaled(rnorm(subjects,-5,0.5)),
+                lapse_ses2 = brms::inv_logit_scaled(rnorm(subjects,-5,0.5))))
+
+#this is the the avg_heart rate for each session (see the - HR_intervention) for session 2
+avg_HR = data.frame(cbind(avg_HR_ses1 = rnorm(subjects,65,5),
+              avg_HR_ses2 = rnorm(subjects,65 - HR_intervention,5)))
+
+#Now we look at the alpha (thresholds) that we observe when investigating the subjects (i.e. the difference between their average HR in the task and the latent thresholds)
+
+obs_alpha = data.frame(alpha_ses1 = avg_HR$avg_HR_ses1-real_thresholds$alphas_ses1,
+                      alpha_ses2 = avg_HR$avg_HR_ses2-real_thresholds$alphas_ses2)
+
+
+df = data.frame(alphas,betas,lapses,avg_HR,obs_alpha) %>% mutate(participant_id = 1:n(), trials = 60) %>%
+ pivot_longer(
+ cols = -c(participant_id,trials),
+ names_to = c(".value", "sessions"),
+ names_sep = "_ses"
+) %>% arrange(sessions,participant_id) %>% mutate(sessions =as.numeric(sessions))
+
+#we put the subjects through PSI:
+
+dd = get_psi_stim(df)
+
+# and gets their trial by trial stimulus values so that we can fit all subjects together hierachically and estimate the difference with and without controlling for the HR.
+
+write.csv(dd,here::here("control analysis","test","control_example_trial.csv"))
+write.csv(df,here::here("control analysis","test","control_example_subject.csv"))
+dd = read.csv(here::here("control analysis","test","control_example_trial.csv"))
+df = read.csv(here::here("control analysis","test","control_example_subject.csv")) %>% mutate(X = NULL)
+
+data = inner_join(df,dd %>% dplyr::select(resp,X,participant_id,sessions,Estimatedthreshold, Estimatedslope,q5_threshold,q95_threshold,q5_slope,q95_slope), by = c("participant_id","sessions"))
+
+
+mod_noncent = cmdstanr::cmdstan_model(here::here("Combined analysis","control stan","standard.stan"),stanc_options = list("O1"))
+
+data = data %>%
+ mutate(session = ifelse(sessions == 1, 0 ,1)) %>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+data_fit = transform_data_to_stan(data)
+
+
+data_stan = list(T = nrow(data_fit),
+                S = length(unique(data_fit$participant_id)),
+                S_id = as.numeric(data_fit$participant_id ),
+                X = data_fit %>% .$X,
+                X_lapse = as.matrix(data.frame(int = rep(1,nrow(data_fit)))),
+                X_alpha = as.matrix(data.frame(int = rep(1,nrow(data_fit)),
+                                               session = data_fit %>% .$sessions)),
+                X_beta = as.matrix(data.frame(int = rep(1,nrow(data_fit)),
+                                              session = data_fit %>% .$sessions)),
+                N_alpha = 2,
+                N_beta = 2,
+                N_lapse = 1,
+                Y = data_fit %>% .$resp,
+                npx = data_fit %>% .$npx
+)
+
+
+# fit with model here no-control
+
+fit_norm <- mod_noncent$sample(
+ data = data_stan,
+ iter_sampling = 1000,
+ iter_warmup = 1000,
+ chains = 4,
+ parallel_chains = 4,
+ refresh = 500,
+ adapt_delta = 0.80,
+ max_treedepth = 12
+)
+
+#extract parameters
+
+group_variables = fit_norm$summary("gm")
+
+group_variables = group_variables %>% mutate(variable = c("beta","beta_dif","lapse","alpha","alpha_dif"))%>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+non_confits = fit_norm$summary(c("alpha_p","beta_p","lapse_p"))
+
+non_confits = non_confits %>% separate(variable, into = c("name", "indices"), sep = "\\[") %>%
+ separate(indices, into = c("index1", "index2"), sep = ",|\\]") %>%
+ mutate(subject = as.numeric(index1),
+        sessions = as.numeric(index2))%>% select(name,mean,sd,q5,q95,subject,sessions)%>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+
+diag_non_control = data.frame(fit_norm$diagnostic_summary())%>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+mod_control = cmdstanr::cmdstan_model(here::here("Combined analysis","control stan","control.stan"),stanc_options = list("O1"))
+
+
+data_stan = list(T = nrow(data_fit),
+                S = length(unique(data_fit$participant_id)),
+                S_id = as.numeric(data_fit$participant_id ),
+                X = data_fit %>% .$X,
+                X_lapse = as.matrix(data.frame(int = rep(1,nrow(data_fit)))),
+                X_alpha = as.matrix(data.frame(int = rep(1,nrow(data_fit)),
+                                               session = data_fit %>% .$sessions,
+                                               avghr = scale(data_fit$avg_HR)[,1])),
+                X_beta = as.matrix(data.frame(int = rep(1,nrow(data_fit)),
+                                              session = data_fit %>% .$sessions,
+                                              avghr = scale(data_fit$avg_HR)[,1])),
+                N_alpha = 3,
+                N_beta = 3,
+                N_lapse = 1,
+                Y = data_fit %>% .$resp,
+                npx = data_fit %>% .$npx
+)
+
+
+# fit with model here with control
+
+fitting
+fit_control <- mod_control$sample(
+ data = data_stan,
+ iter_sampling = 1000,
+ iter_warmup = 1000,
+ chains = 4,
+ init = 0,
+ parallel_chains = 4,
+ refresh = 500,
+ adapt_delta = 0.9,
+ max_treedepth = 12
+)
+
+# extract parameters
+
+diag_control = data.frame(fit_control$diagnostic_summary())%>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+
+group_variables_con = fit_control$summary("gm")
+
+group_variables_con = group_variables_con %>% mutate(variable = c("alpha","alpha_dif","alpha_con","beta","beta_dif","beta_con","lapse"))%>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+
+
+confits = fit_control$summary(c("alpha_p","beta_p","lapse_p"))
+
+confits = confits %>% separate(variable, into = c("name", "indices"), sep = "\\[") %>%
+ separate(indices, into = c("index1", "index2"), sep = ",|\\]") %>%
+ mutate(subject = as.numeric(index1),
+        sessions = as.numeric(index2)) %>% select(name,mean,sd,q5,q95,subject,sessions)%>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+
+real_simulated = df %>% group_by(sessions) %>% summarize(mean_realalpha = mean(realalphas),se_realalpha = sd(realalphas)/sqrt(n()),
+                                       mean_beta = mean(beta),se_beta = sd(beta)/sqrt(n()),
+                                       mean_lapse = mean(lapse), se_lapse = sd(lapse)/sqrt(n()),
+                                       mean_avg_HR = mean(avg_HR),se_avg_HR = sd(avg_HR)/sqrt(n()),
+                                       mean_alpha = mean(alpha), se_alpha = sd(alpha)/sqrt(n()))%>%
+ mutate(subjects = subjects,
+        HR_intervention = HR_intervention,
+        real_alpha_dif = real_alpha_dif)
+
+real_simulated = real_simulated %>% select(mean_realalpha, se_realalpha) %>% mutate(id = 1:2) %>% pivot_wider(values_from = c("mean_realalpha","se_realalpha"), names_from = id) %>% mutate(dif = mean_realalpha_1 - mean_realalpha_2, dif_se = sqrt(se_realalpha_1^2 + se_realalpha_2^2))
+
+# plot it
+
+data.frame() %>%
+ ggplot()+
+ geom_pointrange(data = group_variables_con %>% filter(variable == "alpha_dif") %>%  mutate(group = "Controlled"), aes(y = -0.1, x = mean, xmin = q5, xmax = q95, col = group))+
+ geom_pointrange(data = group_variables %>% filter(variable == "alpha_dif") %>%  mutate(group = "Uncontrolled"), aes(y = 0.1, x = mean, xmin = q5, xmax = q95, col = group))+
+ geom_pointrange(data = real_simulated %>%  mutate(group = "Data"), aes(y = 0, x = dif, xmin = dif-2*dif_se, xmax = dif+2*dif_se, col = group))+
+ ylab("")+xlab("Estimates")+theme_minimal()+
+ theme(axis.ticks.y = element_blank(),
+         axis.text.y = element_blank())
+
+```
+
+
+
+# We do see that in this case atleast we get closer to the data with the controlled. If we repeat this process over many different HR_intervention and real_alpha dif and many times for each combination we can see what happens more generally:
+
+# here we do it from 0 to 10 in real_alpha_dif and from 0 to 15 in HR_intevention and then 100 simulations per combination:
+
+
+<!-- ```{r, fig.height=10,fig.width=10} -->
+<!-- results <- readRDS("~/beta-blocker/Manuscript/testing_real.RDS") -->
+
+<!-- real_avg = map_dfr(results,1) %>% select(sessions,mean_realalpha,se_realalpha,id,subjects,real_alpha_dif,HR_intervention) %>%  -->
+<!--   pivot_wider(names_from = sessions, values_from = c("mean_realalpha","se_realalpha")) %>% unnest() %>%  -->
+<!--     mutate(mean_alpha_dif = mean_realalpha_1-mean_realalpha_2, se_realalpha_dif = sqrt(se_realalpha_1^2+se_realalpha_2^2)) %>%  -->
+<!--     rename(alpha = mean_realalpha_1,alpha_dif = mean_alpha_dif,se_alpha_dif = se_realalpha_dif,se_alpha = se_realalpha_1) %>%  -->
+<!--     select(alpha,alpha_dif,se_alpha,se_alpha_dif,id,subjects,real_alpha_dif,HR_intervention) %>% pivot_longer(cols = c("alpha","alpha_dif"), names_to = "variable", values_to = "mean") %>%  -->
+<!--     pivot_longer(cols = c("se_alpha","se_alpha_dif"), names_to = "a", values_to = "se") %>% filter(row_number() %% 2 == 1) %>%  -->
+<!--     mutate(a = NULL) %>% mutate(con = "Data") -->
+
+
+<!-- controlled_avg = map_dfr(results,3) %>% filter(variable %in% c("alpha","alpha_dif")) %>%  -->
+<!--   select(variable,mean,q5,q95,id,subjects,real_alpha_dif,HR_intervention)%>% mutate(con = T) -->
+<!-- controlled_diag = map_dfr(results,4) -->
+
+
+<!-- uncontrolled_avg = map_dfr(results,6)%>% filter(variable %in% c("alpha","alpha_dif")) %>%  -->
+<!--   select(variable,mean,q5,q95,id,subjects,real_alpha_dif,HR_intervention) %>% mutate(con = F) -->
+<!-- uncontrolled_diag = map_dfr(results,7) -->
+
+
+
+
+<!-- dd = rbind(real_avg %>% mutate(q5 = mean-2*se,q95 = mean+2*se) %>% select(id,variable,mean,q5,q95,con,subjects,real_alpha_dif,HR_intervention), -->
+<!--       controlled_avg %>% select(id,variable,mean,q5,q95,con,subjects,real_alpha_dif,HR_intervention), -->
+<!--       uncontrolled_avg %>% select(id,variable,mean,q5,q95,con,subjects,real_alpha_dif,HR_intervention) -->
+<!--       ) -->
+
+
+<!-- dd %>% filter(variable == "alpha_dif") %>% rename(control = con) %>%  -->
+<!--   ggplot(aes(x = control, y = mean, ymin = q5,ymax = q95, col = as.factor(control)))+ -->
+<!--   geom_boxplot()+ -->
+<!--   facet_grid(real_alpha_dif~HR_intervention, labeller = label_both)+theme(legend.position = "top")+ -->
+<!--   ylab("Size of difference in threshold")+ -->
+<!--   theme_classic()+ -->
+<!--   theme(legend.position = "top")+ -->
+<!--   geom_hline(yintercept = 0, linetype = 2) -->
+
+<!-- ``` -->
+
+# seems to work! 
+

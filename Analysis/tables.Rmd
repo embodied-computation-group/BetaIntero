@@ -1,0 +1,48 @@
+---
+title: "Beta_intero_tables"
+output:
+  word_document: default
+  html_document: default
+date: "2024-08-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes,
+               lsmeans, brms,reticulate,lmerTest,glmmTMB,sjPlot,ggeffects, patchwork, cowplot,ggpubr,flextable)
+
+library(cowplot)
+library(grid)
+library(patchwork)
+library(officer)
+source(here::here("scripts","tables.R"))
+
+```
+
+## Main tables:
+
+### Table 1
+```{r}
+DG_table = Demographics_table()
+```
+
+
+## Supplementary tables:
+
+### Supp. Table 1
+```{r}
+IBQ = IBQ_table()
+```
+
+### Supp. Table 2 and 3
+```{r}
+tables = prior_tables()
+```
+
+```{r}
+tables[[1]]
+```
+
+```{r}
+tables[[2]]
+```
