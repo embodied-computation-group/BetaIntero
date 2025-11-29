@@ -10,3 +10,20 @@ docs2/
 docs/Interoceptive_Belief_Questionnaire_Corrected.docx
 docs/Demographic_Table_APA.docx
 scripts/plotsqq.R
+# Ignore generated model outputs, figures, and tables from revision1 scripts
+scripts/revision1/outputs/
+scripts/revision1/outputs/**
+
+# Ignore R serialized model objects and large data dumps
+*.rds
+scripts/revision1/outputs/data/*.rds
+
+# Ignore generated figures and tables
+scripts/revision1/outputs/figs/
+scripts/revision1/outputs/tables/
+scripts/revision1/outputs/data/
+
+# Ignore temporary files
+*.pdf
+*.html
+*.docx
