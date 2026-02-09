@@ -23,6 +23,12 @@ scripts/revision1/outputs/figs/
 scripts/revision1/outputs/tables/
 scripts/revision1/outputs/data/
 
+# Ignore natcomms_revision outputs (HRD perception model)
+scripts/natcomms_revision/outputs/
+
+# Ignore natcomms_revision metacognition outputs
+scripts/natcomms_revision/metacognition/outputs/
+
 # Ignore temporary files
 *.pdf
 *.html
