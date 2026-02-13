@@ -11,7 +11,7 @@ pacman::p_load(dplyr, readr, glmmTMB, ggplot2, ggeffects, emmeans, here, patchwo
 # Setup directories
 BASE_DIR <- here::here()
 SCRIPT_DIR <- file.path(BASE_DIR, "scripts", "natcomms_revision", "metacognition")
-OUTPUT_DIR <- file.path(SCRIPT_DIR, "outputs")
+OUTPUT_DIR <- file.path(SCRIPT_DIR, "results")
 FIGS_DIR <- file.path(OUTPUT_DIR, "figs")
 DATA_DIR <- file.path(OUTPUT_DIR, "data")
 
@@ -33,6 +33,45 @@ load_latest_model <- function(pattern, data_dir) {
 
 rrst_model <- load_latest_model("model_rrst_confidence_.*\\.rds", DATA_DIR)
 hrd_model  <- load_latest_model("model_hrd_confidence_.*\\.rds", DATA_DIR)
+
+# --- Reconstruct data (needed for emmeans on RDS-loaded models) ---
+RRST_trial_data <- readr::read_csv(
+  file.path(BASE_DIR, "data", "cleaned", "RRST.csv"),
+  show_col_types = FALSE
+) %>%
+  dplyr::filter(ConfResp >= 0 & ConfResp <= 100) %>%
+  dplyr::mutate(
+    Conf = ConfResp / 100,
+    Stimulus = Stim,
+    Drug = factor(drugs,
+                  levels = c("PLACEBO", "PROP", "BISO"),
+                  labels = c("placebo", "propranolol", "bisoprolol")),
+    Drug = relevel(Drug, ref = "placebo"),
+    Accuracy = factor(Resp, levels = c(1, 0),
+                      labels = c("Correct", "Incorrect"))
+  ) %>%
+  tidyr::drop_na() %>%
+  dplyr::group_by(subject) %>%
+  dplyr::mutate(Stimulus_c = Stimulus - mean(Stimulus, na.rm = TRUE)) %>%
+  dplyr::ungroup()
+
+HRD_trl_data <- read.csv(file.path(BASE_DIR, "data", "cleaned", "HRD.csv")) %>%
+  dplyr::mutate(
+    Conf = Confidence / 100,
+    drugs = as.factor(drugs),
+    Drug = factor(drugs,
+                  levels = c("PLACEBO", "PROP", "BISO"),
+                  labels = c("placebo", "propranolol", "bisoprolol")),
+    Drug = relevel(Drug, ref = "placebo"),
+    ResponseCorrect = factor(ResponseCorrect,
+                             levels = c("True", "False"),
+                             labels = c("Correct", "Incorrect"))
+  ) %>%
+  dplyr::filter(subject != "sub_4049") %>%
+  tidyr::drop_na() %>%
+  dplyr::group_by(subject) %>%
+  dplyr::mutate(BPM_scaled = as.numeric(scale(listenBPM))) %>%
+  dplyr::ungroup()
 
 # --- Colour palette and constants ---
 ribbon_col <- "#B0B0B0"
@@ -84,7 +123,7 @@ p1 <- ggplot(preds_hrd, aes(x = x, y = predicted, group = group, color = group))
 # ============================================================
 # HRD: Pairwise Contrast Forest Plot - Correct Trials (p2)
 # ============================================================
-emm_hrd <- emmeans(hrd_model, ~ Drug | ResponseCorrect)
+emm_hrd <- emmeans(hrd_model, ~ Drug | ResponseCorrect, data = HRD_trl_data)
 contrast_hrd <- contrast(emm_hrd, method = "pairwise")
 contrast_hrd_df <- as.data.frame(contrast_hrd)
 
@@ -168,7 +207,7 @@ p3 <- ggplot(preds_rrst, aes(x = x, y = predicted, group = group, color = group)
 # ============================================================
 # RRST: Pairwise Contrast Forest Plot - Correct Trials (p4)
 # ============================================================
-emm_rrst <- emmeans(rrst_model, ~ Drug | Accuracy)
+emm_rrst <- emmeans(rrst_model, ~ Drug | Accuracy, data = RRST_trial_data)
 contrast_rrst <- contrast(emm_rrst, method = "pairwise")
 contrast_rrst_df <- as.data.frame(contrast_rrst)
 
@@ -246,5 +285,91 @@ ggsave(file.path(FIGS_DIR, sprintf("rrst_predicted_confidence_%s.png", TIMESTAMP
        p3, width = 6, height = 6, dpi = 300, bg = "white")
 ggsave(file.path(FIGS_DIR, sprintf("rrst_pairwise_contrast_%s.png", TIMESTAMP)),
        p4, width = 6, height = 5, dpi = 300, bg = "white")
+
+# ============================================================
+# HRD: Drug Main Effect + Interaction Detail Plot
+# ============================================================
+message("Generating HRD confidence detail plot...")
+
+drug_cols <- c("placebo" = "#2E3FAE", "propranolol" = "#C13A8C", "bisoprolol" = "#1FA187")
+
+# A) Marginal Drug means (averaging over ResponseCorrect)
+emm_drug_marginal <- emmeans(hrd_model, ~ Drug, data = HRD_trl_data)
+emm_drug_df <- as.data.frame(emm_drug_marginal)
+
+# Back-transform from log-odds to probability scale for interpretability
+emm_drug_df$pred <- plogis(emm_drug_df$emmean)
+emm_drug_df$pred_lo <- plogis(emm_drug_df$asymp.LCL)
+emm_drug_df$pred_hi <- plogis(emm_drug_df$asymp.UCL)
+
+# Subject-level raw mean confidence (marginal over accuracy)
+subj_means_marginal <- HRD_trl_data %>%
+  group_by(subject, Drug) %>%
+  summarise(mean_conf = mean(Conf, na.rm = TRUE), .groups = "drop")
+
+p_hrd_marginal <- ggplot(emm_drug_df, aes(x = Drug, y = pred, color = Drug)) +
+  geom_jitter(data = subj_means_marginal, aes(x = Drug, y = mean_conf),
+              width = 0.15, alpha = 0.25, size = 1.5, show.legend = FALSE) +
+  geom_pointrange(aes(ymin = pred_lo, ymax = pred_hi),
+                  size = 1.2, linewidth = 1.2, show.legend = FALSE) +
+  scale_color_manual(values = drug_cols) +
+  labs(x = "", y = "Predicted Confidence",
+       title = "Drug Main Effect") +
+  coord_cartesian(ylim = c(0.3, 0.85)) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.line = element_line(linewidth = 0.8)
+  )
+
+# B) Drug x Accuracy cell means
+emm_cell <- emmeans(hrd_model, ~ Drug | ResponseCorrect, data = HRD_trl_data)
+emm_cell_df <- as.data.frame(emm_cell)
+emm_cell_df$pred <- plogis(emm_cell_df$emmean)
+emm_cell_df$pred_lo <- plogis(emm_cell_df$asymp.LCL)
+emm_cell_df$pred_hi <- plogis(emm_cell_df$asymp.UCL)
+
+# Subject-level raw means by Drug x Accuracy
+subj_means_cell <- HRD_trl_data %>%
+  group_by(subject, Drug, ResponseCorrect) %>%
+  summarise(mean_conf = mean(Conf, na.rm = TRUE), .groups = "drop")
+
+p_hrd_interaction <- ggplot(emm_cell_df, aes(x = Drug, y = pred, color = Drug)) +
+  geom_jitter(data = subj_means_cell, aes(x = Drug, y = mean_conf),
+              width = 0.15, alpha = 0.2, size = 1.2, show.legend = FALSE) +
+  geom_pointrange(aes(ymin = pred_lo, ymax = pred_hi),
+                  size = 1.0, linewidth = 1.0, show.legend = FALSE) +
+  facet_wrap(~ ResponseCorrect) +
+  scale_color_manual(values = drug_cols) +
+  labs(x = "", y = "",
+       title = "Drug \u00d7 Accuracy Interaction") +
+  coord_cartesian(ylim = c(0.3, 0.85)) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 14),
+    strip.text = element_text(size = 14, face = "bold"),
+    strip.background = element_blank(),
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.line = element_line(linewidth = 0.8)
+  )
+
+p_hrd_detail <- p_hrd_marginal + p_hrd_interaction +
+  plot_layout(widths = c(1, 2)) +
+  plot_annotation(
+    title = "HRD Metacognitive Confidence: Drug Effects",
+    subtitle = "Points = subject means; error bars = model-estimated marginal means \u00b1 95% CI",
+    theme = theme(
+      plot.title = element_text(size = 18, face = "bold"),
+      plot.subtitle = element_text(size = 12, color = "grey40")
+    )
+  )
+
+ggsave(file.path(FIGS_DIR, sprintf("hrd_confidence_drug_detail_%s.png", TIMESTAMP)),
+       p_hrd_detail, width = 14, height = 6, dpi = 300, bg = "white")
+message("Saved HRD confidence detail plot.")
 
 message("Plot generation complete!")

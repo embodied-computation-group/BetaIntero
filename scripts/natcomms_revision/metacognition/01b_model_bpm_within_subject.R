@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Fit ordered beta regression models of metacognitive confidence (RRST + HRD)
+# Variant of 01_model.R with within-subject BPM scaling for HRD
 # RRST: Conf ~ Stimulus_c + Drug * Accuracy + (1 + Stimulus_c + Accuracy | subject)
 #        Stimulus_c = subject-mean-centered stimulus intensity
 # HRD:  Conf ~ Drug * ResponseCorrect + BPM_scaled + (1 + ResponseCorrect + BPM_scaled | subject)
@@ -121,7 +121,7 @@ message("Saved RRST summary to: ", rrst_summary_file)
 # ============================================================
 # HRD (Cardiac) Confidence Model
 # ============================================================
-message("\n--- HRD Confidence Model ---")
+message("\n--- HRD Confidence Model (within-subject BPM scaling) ---")
 
 HRD_INPUT <- file.path(BASE_DIR, "data", "cleaned", "HRD.csv")
 if (!file.exists(HRD_INPUT)) stop("HRD input not found: ", HRD_INPUT)
@@ -145,7 +145,7 @@ HRD_trl_data <- read.csv(HRD_INPUT) %>%
 # Clean
 HRD_trl_data <- clean_and_report(HRD_trl_data, "HRD_trl_data")
 
-# Within-subject scale listenBPM (center + standardize per subject)
+# Within-subject BPM scaling (center + standardize per subject)
 HRD_trl_data <- HRD_trl_data %>%
   group_by(subject) %>%
   mutate(BPM_scaled = as.numeric(scale(listenBPM))) %>%
@@ -184,6 +184,7 @@ cat("========================================\n")
 cat("Model: HRD Metacognitive Confidence (Ordered Beta Regression)\n")
 cat("Run Timestamp: ", TIMESTAMP, "\n")
 cat("Formula: Conf ~ Drug * ResponseCorrect + BPM_scaled + (1 + ResponseCorrect + BPM_scaled | subject)\n")
+cat("Note: BPM_scaled = within-subject scaled listenBPM (centered + standardized per subject)\n")
 cat("Family: ordbeta()\n")
 cat("Subjects: ", length(unique(HRD_trl_data$subject)), "\n")
 cat("Trials: ", nrow(HRD_trl_data), "\n")

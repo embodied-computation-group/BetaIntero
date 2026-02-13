@@ -11,7 +11,7 @@ pacman::p_load(dplyr, readr, ggplot2, glmmTMB, here, tidyr, patchwork, performan
 # Setup directories
 BASE_DIR <- here::here()
 SCRIPT_DIR <- file.path(BASE_DIR, "scripts", "natcomms_revision", "metacognition")
-OUTPUT_DIR <- file.path(SCRIPT_DIR, "outputs")
+OUTPUT_DIR <- file.path(SCRIPT_DIR, "results")
 FIGS_DIR <- file.path(OUTPUT_DIR, "figs")
 DATA_DIR <- file.path(OUTPUT_DIR, "data")
 

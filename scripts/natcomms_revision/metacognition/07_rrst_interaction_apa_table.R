@@ -8,7 +8,7 @@ pacman::p_load(dplyr, readr, glmmTMB, broom.mixed, emmeans, flextable, officer, 
 # Setup directories
 BASE_DIR <- here::here()
 SCRIPT_DIR <- file.path(BASE_DIR, "scripts", "natcomms_revision", "metacognition")
-OUTPUT_DIR <- file.path(SCRIPT_DIR, "outputs")
+OUTPUT_DIR <- file.path(SCRIPT_DIR, "results")
 DATA_DIR <- file.path(OUTPUT_DIR, "data")
 TABLES_DIR <- file.path(OUTPUT_DIR, "tables")
 

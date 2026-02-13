@@ -8,7 +8,7 @@ pacman::p_load(dplyr, readr, glmmTMB, broom.mixed, flextable, officer, here, web
 # Setup directories
 BASE_DIR <- here::here()
 SCRIPT_DIR <- file.path(BASE_DIR, "scripts", "natcomms_revision", "metacognition")
-OUTPUT_DIR <- file.path(SCRIPT_DIR, "outputs")
+OUTPUT_DIR <- file.path(SCRIPT_DIR, "results")
 DATA_DIR <- file.path(OUTPUT_DIR, "data")
 TABLES_DIR <- file.path(OUTPUT_DIR, "tables")
 
@@ -127,7 +127,7 @@ message("\n--- RRST APA Table ---")
 
 rrst_labels <- c(
   "(Intercept)"                          = "Intercept",
-  "Stimulus"                             = "Stimulus Intensity",
+  "Stimulus_c"                           = "Stimulus Intensity (centered)",
   "Drugpropranolol"                      = "Drug: Propranolol (vs Placebo)",
   "Drugbisoprolol"                       = "Drug: Bisoprolol (vs Placebo)",
   "AccuracyIncorrect"                    = "Accuracy: Incorrect (vs Correct)",
@@ -154,7 +154,7 @@ hrd_labels <- c(
   "Drugpropranolol"                                = "Drug: Propranolol (vs Placebo)",
   "Drugbisoprolol"                                 = "Drug: Bisoprolol (vs Placebo)",
   "ResponseCorrectIncorrect"                       = "Accuracy: Incorrect (vs Correct)",
-  "BPM_scaled"                                     = "Listen BPM (Scaled)",
+  "BPM_scaled"                                       = "Listen BPM (scaled)",
   "Drugpropranolol:ResponseCorrectIncorrect"       = "Propranolol \u00d7 Incorrect",
   "Drugbisoprolol:ResponseCorrectIncorrect"        = "Bisoprolol \u00d7 Incorrect"
 )
@@ -164,7 +164,7 @@ hrd_table <- format_apa_table(hrd_model, hrd_labels)
 save_apa_flextable(
   hrd_table,
   caption_text = "Fixed Effects for HRD Metacognitive Confidence Model (Ordered Beta Regression)",
-  note_text = "Note. B = unstandardized coefficient (mu link, log-odds scale); SE = standard error; CI_95 = 95% confidence interval. Model family: ordered beta regression (ordbeta). Reference level for Drug is Placebo; reference level for ResponseCorrect is Correct. Subject sub_4049 excluded.",
+  note_text = "Note. B = unstandardized coefficient (mu link, log-odds scale); SE = standard error; CI_95 = 95% confidence interval. Model family: ordered beta regression (ordbeta). BPM_scaled = within-subject scaled listenBPM. Reference level for Drug is Placebo; reference level for ResponseCorrect is Correct. Subject sub_4049 excluded.",
   file_prefix = "apa_table_hrd_confidence"
 )
 

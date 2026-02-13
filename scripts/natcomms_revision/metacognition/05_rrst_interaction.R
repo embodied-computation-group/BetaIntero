@@ -12,7 +12,7 @@ pacman::p_load(dplyr, readr, tidyr, glmmTMB, emmeans, ggplot2, ggeffects, sjPlot
 # Setup directories
 BASE_DIR <- here::here()
 SCRIPT_DIR <- file.path(BASE_DIR, "scripts", "natcomms_revision", "metacognition")
-OUTPUT_DIR <- file.path(SCRIPT_DIR, "outputs")
+OUTPUT_DIR <- file.path(SCRIPT_DIR, "results")
 DATA_DIR <- file.path(OUTPUT_DIR, "data")
 DOCS_DIR <- file.path(OUTPUT_DIR, "docs")
 
