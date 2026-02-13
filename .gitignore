@@ -5,29 +5,25 @@
 osf/
 STAN models/
 Figures/
-docs/
-docs2/
+/docs/
+/docs2/
 docs/Interoceptive_Belief_Questionnaire_Corrected.docx
 docs/Demographic_Table_APA.docx
 scripts/plotsqq.R
-# Ignore generated model outputs, figures, and tables from revision1 scripts
-scripts/revision1/outputs/
-scripts/revision1/outputs/**
 
-# Ignore R serialized model objects and large data dumps
+# Ignore R serialized model objects
 *.rds
-scripts/revision1/outputs/data/*.rds
 
-# Ignore generated figures and tables
-scripts/revision1/outputs/figs/
-scripts/revision1/outputs/tables/
-scripts/revision1/outputs/data/
+# Ignore natcomms_revision outputs
+scripts/natcomms_revision/hrd_logit/results/
+scripts/natcomms_revision/metacognition/results/
+scripts/natcomms_revision/hssm/results/
+scripts/natcomms_revision/ez_diffusion/results/
 
-# Ignore natcomms_revision outputs (HRD perception model)
-scripts/natcomms_revision/outputs/
-
-# Ignore natcomms_revision metacognition outputs
-scripts/natcomms_revision/metacognition/outputs/
+# Ignore Python artifacts
+__pycache__/
+.venv/
+*.pyc
 
 # Ignore temporary files
 *.pdf
