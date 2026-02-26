@@ -9,6 +9,8 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
+import cloudpickle
+
 import arviz as az
 import hssm
 import numpy as np
@@ -155,6 +157,10 @@ TASK_FORMULAS = {
 }
 TASK_CODING = {"hrd": "response-coded", "rrst": "accuracy-coded"}
 TASK_NAMES = {"hrd": "HRD", "rrst": "RRST"}
+TASK_CATEGORICALS = {
+    "hrd": {"drug": ["PLACEBO", "BISO", "PROP"]},
+    "rrst": {"drug": ["PLACEBO", "BISO", "PROP"]},
+}
 
 
 def build_model(task, data):
@@ -228,6 +234,7 @@ def save_fitted(model, data, task, mode, cfg, timestamp=None):
         summary.csv - Parameter summary (mean, sd, HDI, ESS, r_hat)
         config.json - Sampler config + model formulas
         data.csv    - Prepared data used for fitting
+        model.pkl   - Cloudpickled HSSM model (for posterior predictive plotting)
 
     Returns:
         run_id (str): e.g. 'hrd_20260211_180000'
@@ -267,6 +274,18 @@ def save_fitted(model, data, task, mode, cfg, timestamp=None):
     # Data
     data.to_csv(outdir / "data.csv", index=False)
 
+    # Model object (for posterior predictive plotting)
+    _inf = getattr(model, "_inference_obj", None)
+    try:
+        model._inference_obj = None  # strip traces (already saved as .nc)
+        with open(outdir / "model.pkl", "wb") as f:
+            cloudpickle.dump(model, f)
+        print(f"  Model object saved.")
+    except Exception as e:
+        print(f"  Warning: Could not save model object: {e}")
+    finally:
+        model._inference_obj = _inf  # always restore
+
     print(f"\n  Saved to: {outdir}")
     return run_id
 
@@ -279,7 +298,7 @@ def load_fitted(task=None, run_id=None):
         run_id: load a specific run (e.g. 'hrd_20260211_180000')
 
     Returns:
-        dict with keys: traces, summary, config, data, run_id, outdir
+        dict with keys: traces, summary, config, data, model, run_id, outdir
     """
     if run_id:
         outdir = FITTED_DIR / run_id
@@ -320,6 +339,39 @@ def load_fitted(task=None, run_id=None):
     # Data
     dcsv = outdir / "data.csv"
     result["data"] = pd.read_csv(dcsv) if dcsv.exists() else None
+
+    # Re-encode categoricals lost in CSV round-trip
+    task_name = result["config"].get("task", run_id.split("_")[0])
+    if result["data"] is not None and task_name in TASK_CATEGORICALS:
+        for col, cats in TASK_CATEGORICALS[task_name].items():
+            if col in result["data"].columns:
+                result["data"][col] = pd.Categorical(
+                    result["data"][col], categories=cats
+                )
+
+    # Model object (for posterior predictive / model cartoon plotting)
+    result["model"] = None
+    pkl = outdir / "model.pkl"
+    if pkl.exists():
+        try:
+            with open(pkl, "rb") as f:
+                result["model"] = cloudpickle.load(f)
+            result["model"].restore_traces(result["traces"])
+            print(f"  Model object loaded from model.pkl")
+        except Exception as e:
+            print(f"  Warning: Could not load model.pkl: {e}")
+            result["model"] = None
+
+    # Fallback: rebuild model from data + config
+    if result["model"] is None and result["data"] is not None and result["traces"] is not None:
+        try:
+            print(f"  Rebuilding model from data + config...")
+            result["model"] = build_model(task_name, result["data"])
+            result["model"].restore_traces(result["traces"])
+            print(f"  Model rebuilt and traces restored.")
+        except Exception as e:
+            print(f"  Warning: Could not rebuild model: {e}")
+            result["model"] = None
 
     return result
 

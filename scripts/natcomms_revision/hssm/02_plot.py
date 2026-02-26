@@ -10,16 +10,47 @@ Usage:
 """
 
 import argparse
+import functools
 import re
 
 import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 
 matplotlib.use("Agg")
 
+from hssm.plotting import plot_model_cartoon as _plot_model_cartoon
 from hssm_utils import FIGS_DIR, TASK_NAMES, TASK_CODING, load_fitted, list_fitted
+
+
+def _patch_model_for_plotting(model):
+    """Apply workarounds for plotting with current bambi/xarray versions.
+
+    1. Patches sample_posterior_predictive to skip group-specific effects
+       (works around dimension mismatch bug with sparse random-effect matrices).
+    2. Injects fixed parameters (e.g. z=0.5) into the posterior so that
+       model cartoon plots can find all DDM parameters.
+    """
+    # Patch group-specific effects out of predictions
+    orig = model.sample_posterior_predictive
+
+    @functools.wraps(orig)
+    def _patched(*args, **kwargs):
+        kwargs.setdefault("include_group_specific", False)
+        return orig(*args, **kwargs)
+
+    model.sample_posterior_predictive = _patched
+
+    # Inject fixed z into posterior traces (cartoon needs all DDM params)
+    if model.traces is not None and "z" not in model.traces.posterior:
+        post = model.traces.posterior
+        z_vals = xr.DataArray(
+            np.full((post.sizes["chain"], post.sizes["draw"]), 0.5),
+            dims=("chain", "draw"),
+        )
+        model.traces.posterior["z"] = z_vals
 
 
 # ============================================================
@@ -166,6 +197,59 @@ def plot_trace(traces, task, filepath):
 
 
 # ============================================================
+# Posterior predictive (requires live model object)
+# ============================================================
+
+def plot_pp(model, task, filepath, n_samples=20):
+    """Posterior predictive RT distributions faceted by drug condition."""
+    try:
+        task_name = TASK_NAMES[task]
+        model.plot_posterior_predictive(
+            col="drug", n_samples=n_samples, bins=50,
+            title=f"{task_name} Posterior Predictive",
+        )
+        plt.savefig(filepath, dpi=300, bbox_inches="tight", facecolor="white")
+        plt.close("all")
+        print(f"  Saved: {filepath.name}")
+    except Exception as e:
+        print(f"  Posterior predictive plot skipped: {e}")
+        plt.close("all")
+
+
+def plot_cartoon(model, task, filepath, n_samples=20):
+    """Model cartoon: mean predicted density overlaid on observed data."""
+    try:
+        task_name = TASK_NAMES[task]
+        _plot_model_cartoon(
+            model, col="drug", n_samples=n_samples,
+            plot_predictive_mean=True, plot_predictive_samples=False,
+            title=f"{task_name} Model Cartoon",
+        )
+        plt.savefig(filepath, dpi=300, bbox_inches="tight", facecolor="white")
+        plt.close("all")
+        print(f"  Saved: {filepath.name}")
+    except Exception as e:
+        print(f"  Model cartoon plot skipped: {e}")
+        plt.close("all")
+
+
+def plot_qp(model, task, filepath, n_samples=20):
+    """Quantile-probability plot by drug condition."""
+    try:
+        task_name = TASK_NAMES[task]
+        model.plot_quantile_probability(
+            cond="drug", n_samples=n_samples, q=5,
+            title=f"{task_name} QP Plot",
+        )
+        plt.savefig(filepath, dpi=300, bbox_inches="tight", facecolor="white")
+        plt.close("all")
+        print(f"  Saved: {filepath.name}")
+    except Exception as e:
+        print(f"  QP plot skipped: {e}")
+        plt.close("all")
+
+
+# ============================================================
 # CLI
 # ============================================================
 
@@ -222,6 +306,16 @@ def main():
             result["traces"], task,
             FIGS_DIR / f"{rid}_trace.png",
         )
+
+        # Model-based plots (posterior predictive, cartoon, QP)
+        model = result.get("model")
+        if model is not None:
+            _patch_model_for_plotting(model)
+            plot_pp(model, task, FIGS_DIR / f"{rid}_pp.png")
+            plot_cartoon(model, task, FIGS_DIR / f"{rid}_cartoon.png")
+            plot_qp(model, task, FIGS_DIR / f"{rid}_qp.png")
+        else:
+            print("  Skipping model-based plots (no model object available)")
 
     print(f"\n====== Done! Plots in {FIGS_DIR} ======")
 
