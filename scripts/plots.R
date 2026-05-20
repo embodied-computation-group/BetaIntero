@@ -33,7 +33,7 @@ plot_1 = function(){
     
     return(data)
   }
-
+  
   
   # function that uses get_line_intervals(.)
   plot_interval <- function(df, interoPost = NA) {
@@ -128,16 +128,16 @@ plot_1 = function(){
       mutate(parameter = as.numeric(sub(".*,(\\d+)\\]", "\\1", variable))) %>% 
       mutate(subject = as.numeric(gsub("^param\\[(\\d+),\\d+\\]", "\\1", variable))) %>% 
       mutate(parameter = ifelse(parameter == 1, "alpha_placebo1",
-        ifelse(parameter == 2, "alpha_biso_dif",
-               ifelse(parameter == 3, "alpha_prop_dif",
-                      ifelse(parameter == 4, "alpha_control",
-                          ifelse(parameter == 5, "beta_placebo1",
-                                  ifelse(parameter == 6, "beta_biso_dif",
-                                        ifelse(parameter == 7, "beta_prop_dif",
-                                             ifelse(parameter == 8, "beta_control",
-                                                  ifelse(parameter == 9, "lapse_placebo1",
-                                                       ifelse(parameter == 10, "lapse_biso_dif",
-                                                           ifelse(parameter == 11, "lapse_prop_dif",NA)))))))))))) %>%
+                                ifelse(parameter == 2, "alpha_biso_dif",
+                                       ifelse(parameter == 3, "alpha_prop_dif",
+                                              ifelse(parameter == 4, "alpha_control",
+                                                     ifelse(parameter == 5, "beta_placebo1",
+                                                            ifelse(parameter == 6, "beta_biso_dif",
+                                                                   ifelse(parameter == 7, "beta_prop_dif",
+                                                                          ifelse(parameter == 8, "beta_control",
+                                                                                 ifelse(parameter == 9, "lapse_placebo1",
+                                                                                        ifelse(parameter == 10, "lapse_biso_dif",
+                                                                                               ifelse(parameter == 11, "lapse_prop_dif",NA)))))))))))) %>%
       select(parameter,draw,value) %>% pivot_wider(names_from = "parameter", values_from = "value") %>% 
       mutate(alpha_placebo = alpha_placebo1,
              alpha_biso = alpha_placebo1+alpha_biso_dif,
@@ -191,9 +191,9 @@ plot_1 = function(){
                                               ifelse(parameter == 4, "lapse_placebo1",
                                                      ifelse(parameter == 5, "lapse_biso_dif",
                                                             ifelse(parameter == 6, "lapse_prop_dif",
-                                                                  ifelse(parameter == 7, "alpha_placebo1",
-                                                                         ifelse(parameter == 8, "alpha_biso_dif",
-                                                                                ifelse(parameter == 9, "alpha_prop_dif",NA)))))))))) %>%
+                                                                   ifelse(parameter == 7, "alpha_placebo1",
+                                                                          ifelse(parameter == 8, "alpha_biso_dif",
+                                                                                 ifelse(parameter == 9, "alpha_prop_dif",NA)))))))))) %>%
       select(parameter,draw,value) %>% pivot_wider(names_from = "parameter", values_from = "value") %>% 
       mutate(beta_placebo= exp(beta_placebo1),
              beta_biso = exp(beta_placebo1+beta_biso_dif),
@@ -231,9 +231,9 @@ plot_1 = function(){
   plot1_hrd = function(){
     
     # load subjet data for first visist
-      df = read_delim(here::here("data","sub_3025","visit_0001",
+    df = read_delim(here::here("data","sub_3025","visit_0001",
                                "InteroceptionTasks","HRD","0251HRD","0251HRD_final.txt"))
-      # load subjet numpy array (PSI trajectory) for first visist    
+    # load subjet numpy array (PSI trajectory) for first visist    
     interoPost = np$load(here::here("data","sub_3025","visit_0001",
                                     "InteroceptionTasks","HRD","0251HRD","0251Intero_posterior.npy"))
     # load subjet data for second visit
@@ -246,7 +246,7 @@ plot_1 = function(){
     # load subjet data for last visist
     df2 = read_delim(here::here("data","sub_3025","visit_0003",
                                 "InteroceptionTasks","HRD","0253HRD","0253HRD_final.txt"))
-
+    
     # load subjet numpy array (PSI trajectory) for last visist    
     interoPost2 = np$load(here::here("data","sub_3025","visit_0003",
                                      "InteroceptionTasks","HRD","0253HRD","0253Intero_posterior.npy"))
@@ -365,7 +365,7 @@ plot_1 = function(){
     library(readr)
     RRST_thresholdse <- read_csv(here::here("data","sub_3025","visit_0003","InteroceptionTasks","RRST","RRST_thresholdse.csv"))
     thresholdse = as.numeric(colnames(RRST_thresholdse))
-
+    
     # then the raw data
     df = read_csv(here::here("data","RRST_trial_level_data.csv")) %>% filter(subject == "sub_3025" & visit == "visit_0003")
     
@@ -452,7 +452,9 @@ plot_2 = function(){
   ########## HRD:
   make_hrd = function(){
     #load model
-    model <- readRDS(here::here("STAN models","HRD.RDS"))
+    
+    # model <- readRDS(here::here("STAN models","revisions","HRD_doublecontrol.RDS"))
+    model <- readRDS(here::here("STAN models","revisions","revisions_v2","HRD_final.RDS"))
     line_width = 1.3
     fontsize = 30
     #psychometric equation HRD
@@ -465,18 +467,17 @@ plot_2 = function(){
     
     # data for the histogram on the plot (Slopes and threshold)
     
-    hist = as_draws_df(model$draws(paste0("gm[",1:11,"]"))) %>% 
-      mutate(beta_placebo = exp(`gm[5]`),
-             beta_biso = exp(`gm[5]`+`gm[6]`),
-             beta_prop = exp(`gm[5]`+`gm[7]`),
+    hist = as_draws_df(model$draws(paste0("gm[",1:13,"]"))) %>% 
+      mutate(beta_placebo = exp(`gm[6]`),
+             beta_biso = exp(`gm[6]`+`gm[7]`),
+             beta_prop = exp(`gm[6]`+`gm[8]`),
              control_beta = `gm[8]`,
-             lapse_placebo = brms::inv_logit_scaled(`gm[9]`) / 2,
-             lapse_biso = brms::inv_logit_scaled(`gm[9]`+`gm[10]`) / 2,
-             lapse_prop = brms::inv_logit_scaled(`gm[9]`+`gm[11]`) / 2,
+             lapse_placebo = brms::inv_logit_scaled(`gm[11]`) / 2,
+             lapse_biso = brms::inv_logit_scaled(`gm[11]`+`gm[12]`) / 2,
+             lapse_prop = brms::inv_logit_scaled(`gm[11]`+`gm[13]`) / 2,
              alpha_placebo = `gm[1]`,
              alpha_biso = `gm[1]`+`gm[2]`,
-             alpha_prop = `gm[1]`+`gm[3]`,
-             contol_alpha = `gm[4]`) %>% 
+             alpha_prop = `gm[1]`+`gm[3]`) %>% 
       mutate(draw = 1:10000)  %>% 
       select(-contains("."))%>%
       select(-contains("gm[")) %>% 
@@ -524,21 +525,20 @@ plot_2 = function(){
       scale_x_continuous(labels = c(4,10), breaks = c(4,10))+
       theme(axis.line.y = element_line(linewidth = line_width))+
       scale_y_continuous(expand = c(0, 0))
-  
+    
     
     # get psychometric functions for the group means
-    population_means = as_draws_df(model$draws(paste0("gm[",1:11,"]"))) %>% 
-      mutate(beta_placebo = exp(`gm[5]`),
-             beta_biso = exp(`gm[5]`+`gm[6]`),
-             beta_prop = exp(`gm[5]`+`gm[7]`),
+    population_means = as_draws_df(model$draws(paste0("gm[",1:13,"]"))) %>% 
+      mutate(beta_placebo = exp(`gm[6]`),
+             beta_biso = exp(`gm[6]`+`gm[7]`),
+             beta_prop = exp(`gm[6]`+`gm[8]`),
              control_beta = `gm[8]`,
-             lapse_placebo = brms::inv_logit_scaled(`gm[9]`) / 2,
-             lapse_biso = brms::inv_logit_scaled(`gm[9]`+`gm[10]`) / 2,
-             lapse_prop = brms::inv_logit_scaled(`gm[9]`+`gm[11]`) / 2,
+             lapse_placebo = brms::inv_logit_scaled(`gm[11]`) / 2,
+             lapse_biso = brms::inv_logit_scaled(`gm[11]`+`gm[12]`) / 2,
+             lapse_prop = brms::inv_logit_scaled(`gm[11]`+`gm[13]`) / 2,
              alpha_placebo = `gm[1]`,
              alpha_biso = `gm[1]`+`gm[2]`,
-             alpha_prop = `gm[1]`+`gm[3]`,
-             contol_alpha = `gm[4]`) %>% 
+             alpha_prop = `gm[1]`+`gm[3]`) %>% 
       mutate(draw = 1:10000)  %>% 
       select(-contains("."))%>%
       select(-contains("gm[")) %>% 
@@ -623,11 +623,11 @@ plot_2 = function(){
     
     # include marginal differences below!
     
-    marginal_dif = as_draws_df(model$draws(paste0("gm[",1:11,"]"))) %>% 
-      mutate(slope_biso_v_placebo = `gm[6]`,
-             slope_prop_v_placebo = `gm[7]`,
-             lapse_biso_v_placebo = `gm[10]`,
-             lapse_prop_v_placebo = `gm[11]`,
+    marginal_dif = as_draws_df(model$draws(paste0("gm[",1:13,"]"))) %>% 
+      mutate(slope_biso_v_placebo = `gm[7]`,
+             slope_prop_v_placebo = `gm[8]`,
+             lapse_biso_v_placebo = `gm[12]`,
+             lapse_prop_v_placebo = `gm[13]`,
              alpha_biso_v_placebo = `gm[2]`,
              alpha_prop_v_placebo = `gm[3]`) %>% 
       mutate(draw = 1:10000)  %>% 
@@ -780,19 +780,19 @@ plot_2 = function(){
     line_width = 1.3
     fontsize = 30
     colors = c("#1200A8","#B00089","#009F73")
-    model_rrst <- readRDS(here::here("STAN models","RRST.RDS"))
-    
+    # model_rrst <- readRDS(here::here("STAN models","revisions","RRST_doublecontrol.RDS"))
+    model_rrst <- readRDS(here::here("STAN models","revisions","revisions_v2","RRST_final.RDS"))
     # histograms slopes and threshold data
-    hist_rrst = as_draws_df(model_rrst$draws(paste0("gm[",1:9,"]"))) %>% 
+    hist_rrst = as_draws_df(model_rrst$draws(paste0("gm[",1:13,"]"))) %>% 
       mutate(beta_placebo = exp(`gm[1]`),
              beta_biso = exp(`gm[1]`+`gm[2]`),
              beta_prop = exp(`gm[1]`+`gm[3]`),
-             lapse_placebo = brms::inv_logit_scaled(`gm[4]`) / 2,
-             lapse_biso = brms::inv_logit_scaled(`gm[4]`+`gm[5]`) / 2,
-             lapse_prop = brms::inv_logit_scaled(`gm[4]`+`gm[6]`) / 2,
-             alpha_placebo = `gm[7]`,
-             alpha_biso = `gm[7]`+`gm[8]`,
-             alpha_prop = `gm[7]`+`gm[9]`) %>% 
+             lapse_placebo = brms::inv_logit_scaled(`gm[6]`) / 2,
+             lapse_biso = brms::inv_logit_scaled(`gm[6]`+`gm[7]`) / 2,
+             lapse_prop = brms::inv_logit_scaled(`gm[6]`+`gm[8]`) / 2,
+             alpha_placebo = `gm[9]`,
+             alpha_biso = `gm[9]`+`gm[10]`,
+             alpha_prop = `gm[9]`+`gm[11]`) %>% 
       mutate(draw = 1:10000)  %>% 
       select(-contains("."))%>%
       select(-contains("gm[")) %>% 
@@ -841,16 +841,16 @@ plot_2 = function(){
     
     
     # group means for the first plot of psychometric functions
-    population_means_rrst = as_draws_df(model_rrst$draws(paste0("gm[",1:9,"]"))) %>% 
+    population_means_rrst = as_draws_df(model_rrst$draws(paste0("gm[",1:13,"]"))) %>% 
       mutate(beta_placebo = exp(`gm[1]`),
              beta_biso = exp(`gm[1]`+`gm[2]`),
              beta_prop = exp(`gm[1]`+`gm[3]`),
-             lapse_placebo = brms::inv_logit_scaled(`gm[4]`) / 2,
-             lapse_biso = brms::inv_logit_scaled(`gm[4]`+`gm[5]`) / 2,
-             lapse_prop = brms::inv_logit_scaled(`gm[4]`+`gm[6]`) / 2,
-             alpha_placebo = `gm[7]`,
-             alpha_biso = `gm[7]`+`gm[8]`,
-             alpha_prop = `gm[7]`+`gm[9]`) %>% 
+             lapse_placebo = brms::inv_logit_scaled(`gm[6]`) / 2,
+             lapse_biso = brms::inv_logit_scaled(`gm[6]`+`gm[7]`) / 2,
+             lapse_prop = brms::inv_logit_scaled(`gm[6]`+`gm[8]`) / 2,
+             alpha_placebo = `gm[9]`,
+             alpha_biso = `gm[9]`+`gm[10]`,
+             alpha_prop = `gm[9]`+`gm[11]`) %>% 
       mutate(draw = 1:10000)  %>% 
       # filter(draw %in% draw_iq) %>% 
       select(-contains("."))%>%
@@ -887,7 +887,7 @@ plot_2 = function(){
     
     
     population_means_rrst$status = factor(population_means_rrst$status, levels = c("placebo", "biso", "prop"))
-
+    
     #first plot of group level psychometric functions
     q_rrst = population_means_rrst %>% 
       mutate(status = ifelse(status == "placebo","placebo",ifelse(status == "biso","bisoprolol","propranolol"))) %>% 
@@ -940,13 +940,13 @@ plot_2 = function(){
     
     #Marginal difference (data)
     
-    marginal_dif = as_draws_df(model_rrst$draws(paste0("gm[",1:9,"]"))) %>% 
+    marginal_dif = as_draws_df(model_rrst$draws(paste0("gm[",1:13,"]"))) %>% 
       mutate(slope_biso_v_placebo = `gm[2]`,
              slope_prop_v_placebo = `gm[3]`,
-             lapse_biso_v_placebo = `gm[5]`,
-             lapse_prop_v_placebo = `gm[6]`,
-             alpha_biso_v_placebo = `gm[8]`,
-             alpha_prop_v_placebo = `gm[9]`) %>% 
+             lapse_biso_v_placebo = `gm[7]`,
+             lapse_prop_v_placebo = `gm[8]`,
+             alpha_biso_v_placebo = `gm[10]`,
+             alpha_prop_v_placebo = `gm[11]`) %>% 
       mutate(draw = 1:10000)  %>% 
       # filter(draw %in% draw_iq) %>% 
       select(-contains("."))%>%
@@ -983,12 +983,12 @@ plot_2 = function(){
       geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, show.legend = FALSE)+
       geom_point(aes(y = y_val, x = mean),size = 5, show.legend = FALSE)+
       # geom_vline(xintercept = 0, linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
-      coord_cartesian(xlim = c(-0.45,0.45), ylim = c(-1,5))+
+      coord_cartesian(xlim = c(-0.9,0.45), ylim = c(-1,5))+
       geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 8.3), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
       facet_wrap(~Parameters, scales = "free")+
       theme_classic()+
       xlab("")+ylab("")+
-      scale_x_continuous(breaks = c(-0.4,0,0.4), labels = c("-0.4","0","0.4"))+
+      scale_x_continuous(breaks = c(-0.8,0,0.4), labels = c("-0.8","0","0.4"))+
       theme(axis.text.y = element_blank(),
             strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
             axis.line.y = element_blank(),        # Remove the y-axis line
@@ -1017,7 +1017,7 @@ plot_2 = function(){
       geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, show.legend = FALSE)+
       geom_point(aes(y = y_val, x = mean),size = 5, show.legend = FALSE)+
       # geom_vline(xintercept = 0, linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
-      coord_cartesian(xlim = c(0,0.65), ylim = c(-1,5))+
+      coord_cartesian(xlim = c(0,0.7), ylim = c(-1,5))+
       geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 8.3), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
       facet_wrap(~Parameters, scales = "free")+
       theme_classic()+ theme(
@@ -1057,7 +1057,7 @@ plot_2 = function(){
       geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, show.legend = FALSE)+
       geom_point(aes(y = y_val, x = mean),size = 5, show.legend = FALSE)+
       # geom_vline(xintercept = 0, linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
-      coord_cartesian(xlim = c(-2.5,0), ylim = c(-1,5))+
+      coord_cartesian(xlim = c(-2.25,1.5), ylim = c(-1,5))+
       geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 8.3), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
       facet_wrap(~Parameters, scales = "free")+
       theme_classic()  + theme(
@@ -1069,7 +1069,7 @@ plot_2 = function(){
         panel.spacing = unit(1, "lines")      # Optional: Adjust space between facets
       )+
       xlab("")+
-      scale_x_continuous(breaks = c(-2,-1,0), labels = c("-2","-1","0"))+
+      scale_x_continuous(breaks = c(-2,-1,0,1), labels = c("-2","-1","0","1"))+
       theme(legend.position = "none")+
       scale_color_manual(values = colors)+
       theme(
@@ -1082,7 +1082,7 @@ plot_2 = function(){
         axis.line.x = element_line(linewidth = line_width) 
       )
     
-
+    
     #return it all
     
     return(list(alpha_rrst,beta_rrst,lapse_rrst,qq_rrst))
@@ -1104,11 +1104,12 @@ plot_2 = function(){
   #watch it
   plot
   #save it
-  ggsave(here::here("Figures","plot2.tiff"),plot, height = 10, width = 18, units = "in", dpi = 400)
+  ggsave(here::here("Figures","plot2_revision_visions2.tiff"),plot, height = 10, width = 18, units = "in", dpi = 400)
   #return it
   return(plot)
 }
 
+# plot_2()
 
 # Plot 3:
 
@@ -1179,11 +1180,11 @@ plot_3 = function(){
            Drug = relevel(Drug, ref = "placebo"),
            Condition = drugs,
            Accuracy = factor(Resp, levels = c(1, 0), labels = c("Correct", "Incorrect"))
-           )
+    )
   
   # Cleaning RRST data
   RRST_trial_data <- clean_and_report(RRST_trial_data, "RRST_trial_data")
-
+  
   # RRST - Ordered beta regression confidence model
   RRST_conf_model <- glmmTMB(
     Conf ~ Stimulus + Drug * Accuracy + (1 + Stimulus + Accuracy | subject),
@@ -1399,7 +1400,7 @@ plot_3 = function(){
   
   ggsave(here::here("Figures","plot3.tiff"), combined_plot_full, device = "tiff", width = 12, height = 10, units = "in", dpi = 400)
   ggsave(here::here("Figures","plot3.png"), combined_plot_full, device = "png", width = 12, height = 10, units = "in", dpi = 400)
-
+  
 }
 
 # Supplementary Figures
@@ -1510,7 +1511,7 @@ plot_s2 = function(){
     
     # all sessions:
     if(sum(c("BISO","PROP","PLACEBO") %in% colnames(dfq))== 3){
-
+      
       plot = dfq %>% unnest(cols = c(BISO, PLACEBO, PROP)) %>% 
         pivot_wider(values_from = c("PLACEBO","BISO","PROP"),names_from = "parameter") %>% unnest() %>% 
         group_by(draw) %>% 
@@ -1543,7 +1544,7 @@ plot_s2 = function(){
         scale_color_manual(values = c("placebo" = "#1200A8", "propranolol" = "#B00089", "bisoprolol" = "#009F73"),
                            breaks = c("placebo", "propranolol", "bisoprolol"))+
         scale_fill_manual(values = c("placebo" = "#1200A8", "propranolol" = "#B00089", "bisoprolol" = "#009F73"),
-                           breaks = c("placebo", "propranolol", "bisoprolol"))
+                          breaks = c("placebo", "propranolol", "bisoprolol"))
       
       return(plot)
       
@@ -1799,7 +1800,704 @@ plot_s2 = function(){
   #save it
   ggsave(here::here("Figures","Supplementary3_RRST.tiff"), combined_plot_rrst, width = 20, height = 10, units = "in", dpi = 400)
   
- 
+  
+}
+
+
+# Supp Figs 4 & 5 : group level plots of meta cognition model with raw data overlay:
+plot_s3 = function(){
+  
+  RRST_trial_data <- read_csv(here::here("data","cleaned","RRST.csv")) %>% 
+    filter(ConfResp >= 0 & ConfResp <= 100) %>%
+    mutate(Conf = ConfResp/100,
+           Stimulus = Stim,
+           Drug = factor(drugs, levels = c("PLACEBO", "PROP", "BISO"), labels = c("placebo", "propranolol", "bisoprolol")),
+           Drug = relevel(Drug, ref = "placebo"),
+           Condition = drugs,
+           Accuracy = factor(Resp, levels = c(1, 0), labels = c("Correct", "Incorrect"))
+    )
+  
+  
+  # Cleaning RRST data
+  RRST_trial_data <- clean_and_report(RRST_trial_data, "RRST_trial_data")
+  
+  
+  ## Models
+  
+  # RRST - Ordered beta regression confidence model
+  RRST_conf_model <- glmmTMB(
+    Conf ~ Stimulus + Drug * Accuracy + (1 + Stimulus + Accuracy | subject),
+    data = RRST_trial_data,
+    family = ordbeta(),
+    control = glmmTMBControl(optCtrl = list(iter.max = 1000, eval.max = 1000))
+  )
+  
+  # summarise effects
+  summary(RRST_conf_model)
+  
+  
+  ## plotting the estimated means and overlaying a grand average data.
+  P1 = (ggemmeans(RRST_conf_model, terms = c("Stimulus","Accuracy" ,"Drug")))
+  
+  
+  subj_data <- RRST_trial_data %>%
+    group_by(subject, Accuracy, Stimulus, Drug) %>%
+    summarize(mean_conf = mean(Conf), .groups = "drop") %>%
+    group_by(Accuracy, Stimulus, Drug) %>%
+    summarize(
+      mean = mean(mean_conf),
+      se = sd(mean_conf) / sqrt(n()),
+      q5 = mean - 2 * se,
+      q95 = mean + 2 * se,
+      .groups = "drop"
+    ) %>%
+    mutate(facet = Drug)
+  
+  
+  combined_plot_rrst = data.frame(P1) %>% 
+    mutate(Accuracy = as.factor(group)) %>% 
+    ggplot()+
+    geom_line(aes(x = x, y = predicted, ymin = conf.low,, ymax = conf.high, fill = Accuracy))+
+    geom_ribbon(aes(x = x, y = predicted, ymin = conf.low,, ymax = conf.high, fill = Accuracy), alpha = 0.25)+
+    geom_pointrange(data = subj_data, aes(x = Stimulus, y = mean, ymin = q5,ymax = q95, fill = as.factor(Accuracy)),
+                    shape = 21,
+                    col = "black", 
+                    position = position_dodge(width = 1))+
+    scale_color_manual(values = c("green","red"))+
+    scale_fill_manual(values = c("green","red"))+
+    facet_wrap(~facet)+
+    labs(x = "Stimulus intensity (% RRes)",
+         y = "P(Response = faster | % RRes)")+
+    scale_x_continuous(breaks = c(4.25,8.5,12.75,17), labels = c(25,50,75,100))+
+    theme_classic(base_size = 16)
+  
+  
+  ggsave(here::here("figures","revisions","Supplementary4_RRST.tiff"), combined_plot_rrst, width = 20, height = 10, units = "in", dpi = 400)
+  
+  
+  HRD_trl_data = read.csv(here::here("data","cleaned","HRD.csv")) %>% 
+    mutate(Conf = Confidence/100,
+           drugs = as.factor(drugs),
+           Drug = factor(drugs, levels = c("PLACEBO", "PROP", "BISO"), labels = c("placebo", "propranolol", "bisoprolol")),
+           Drug = relevel(Drug, ref = "placebo"),
+           ResponseCorrect = factor(ResponseCorrect, levels = c("True", "False"), labels = c("Correct", "Incorrect")),
+           BPM_scaled = scale(listenBPM),
+           Condition = drugs
+    ) %>% 
+    filter(subject != "sub_4049")
+  
+  # Cleaning HRD data
+  HRD_trl_data <- clean_and_report(HRD_trl_data, "HRD_trl_data")
+  
+  # HRD - Ordered beta regression confidence model
+  HRD_conf_model <- glmmTMB(
+    Conf ~ Drug * ResponseCorrect  + BPM_scaled +  (1  + ResponseCorrect + BPM_scaled | subject),
+    data = HRD_trl_data,
+    family = ordbeta(),
+    start = list(psi = c(0, 1)),
+    control = glmmTMBControl(optCtrl = list(iter.max = 1000, eval.max = 1000))
+  )
+  
+  summary(HRD_conf_model)
+  
+  p1  = (ggemmeans(HRD_conf_model, terms = c("ResponseCorrect" ,"Drug")))
+  
+  
+  breaks <- unique(quantile(HRD_trl_data$Alpha, probs = seq(0, 1, length.out = 9)))
+  
+  
+  
+  subj_data <-  HRD_trl_data %>% 
+    group_by(Drug) %>%
+    mutate(
+      bins = cut(Alpha, breaks = breaks, include.lowest = TRUE, labels = FALSE),
+      Alpha = sapply(bins, function(bin) mean(Alpha[bins == bin])),
+    )%>% 
+    # group_by(subject, ResponseCorrect, Drug, Alpha,bins) %>% 
+    mutate(Alpha_low = sapply(bins, function(bin) breaks[bin]),
+           Alpha_high = sapply(bins, function(bin) breaks[bin + 1])) %>% 
+    # mutate(Alpha = cut(Alpha,11))%>% 
+    group_by(subject, ResponseCorrect, Alpha, Drug) %>%
+    summarize(mean_conf = mean(Conf, na.rm = T), .groups = "drop") %>%
+    group_by(ResponseCorrect, Alpha, Drug) %>%
+    summarize(
+      mean = mean(mean_conf, na.rm = T),
+      se = sd(mean_conf, na.rm = T) / sqrt(n()),
+      q5 = mean - 2 * se,
+      q95 = mean + 2 * se,
+      .groups = "drop"
+    ) %>%
+    mutate(facet = Drug)
+  
+  
+  preds <- data.frame(p1) %>%
+    rename(
+      Accuracy = x,
+      facet = group
+    ) %>%
+    tidyr::crossing(x = seq(min(subj_data$Alpha)-1, max(subj_data$Alpha)+1, by = 5))
+  
+  # preds = data.frame(facet = c("placebo","placebo","propranolol","propranolol","bisoprolol","bisoprolol"),
+  #                    Accuracy = c("Correct","Incorrect","Correct","Incorrect","Correct","Incorrect"),
+  #                    predicted = c(0.61,0.51,0.64,0.52,0.66,0.53),
+  #                    conf.low = c(0.56,0.45,0.59,0.45,0.61,0.46),
+  #                    conf.high = c(0.65,0.58,0.68,0.58,0.70,0.60)) %>% mutate(x = list(seq(0,6,by = 1))) %>% unnest()
+  
+  
+  
+  combined_plot_hrd = subj_data %>% 
+    mutate(Accuracy = as.factor(ResponseCorrect)) %>% 
+    ggplot()+
+    geom_pointrange(aes(x = Alpha, y = mean, ymin = q5,ymax = q95, fill = Accuracy), col = "black", shape = 21, position = position_dodge(width = 5))+
+    geom_line(data = preds,aes(x = x, y = predicted, col = Accuracy))+
+    geom_ribbon(data = preds,aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high, fill = Accuracy), alpha = 0.25)+
+    scale_color_manual(values = c("green","red"))+
+    scale_fill_manual(values = c("green","red"))+
+    facet_wrap(~facet,scales = "free")+
+    theme_classic(base_size = 16)+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+    labs(x =  "Binned Stimulus intensity (ΔBPM)",
+         y = "P(Response = faster | ΔBPM)")
+  
+  
+  ggsave(here::here("figures","revisions","Supplementary5_HRD.tiff"), combined_plot_hrd, width = 20, height = 10, units = "in", dpi = 400)
+  
+  
+}
+
+#plotting all marginal parameter estimates for all models:
+plot_rev = function(){
+  
+  
+  library(tidyverse)
+  library(posterior)
+  line_width = 1.3
+  fontsize = 30
+  names = c("Threshold_placebo_vs_biso","Threshold_placebo_vs_prop","Slope_placebo_vs_biso","Slope_placebo_vs_prop","Lapse_placebo_vs_biso","Lapse_placebo_vs_prop")
+  
+  HRD_control <- readRDS(here::here("STAN models","HRD_control.RDS"))
+  HRD_none <- readRDS(here::here("STAN models","revisions","HRD.RDS"))
+  HRD_full <- readRDS(here::here("STAN models","revisions","HRD_doublecontrol.RDS"))
+  HRD_final <- readRDS(here::here("STAN models","revisions","revisions_v2","HRD_final.RDS"))
+  
+  
+  dd = rbind(
+    HRD_control$draws(c("gm[2]",
+                        "gm[3]",
+                        "gm[6]",
+                        "gm[7]",
+                        "gm[10]",
+                        "gm[11]")) %>% 
+      as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names) %>% 
+      mutate(model = "avgHR_control"),
+    HRD_none$draws(c("gm[2]",
+                     "gm[3]",
+                     "gm[5]",
+                     "gm[6]",
+                     "gm[8]",
+                     "gm[9]")) %>% as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names) %>% 
+      mutate(model = "no_control"),
+    HRD_full$draws(c("gm[2]",
+                     "gm[3]",
+                     "gm[7]",
+                     "gm[8]",
+                     "gm[12]",
+                     "gm[13]")) %>% as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names)%>% 
+      mutate(model = "avgHR&avgSDHR_control"),
+    HRD_final$draws(c("gm[2]",
+                      "gm[3]",
+                      "gm[7]",
+                      "gm[8]",
+                      "gm[12]",
+                      "gm[13]")) %>% as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names)%>% 
+      mutate(model = "Final")
+  ) %>% 
+    pivot_longer(
+      cols = -model,
+      names_to = c("parameter", "comparison"),
+      names_sep = "_placebo_vs_",
+      values_to = "value"
+    )
+  
+  hdi =dd %>% group_by(model,parameter,comparison) %>% summarize(mean = mean(value),
+                                                                 q_95h = quantile2(value, probs = c(0.05,0.95))[[1]],
+                                                                 q_5l = quantile2(value, probs = c(0.05,0.95))[[2]],
+                                                                 q_80h = quantile2(value, probs = c(0.20,0.80))[[1]],
+                                                                 q_20l = quantile2(value, probs = c(0.20,0.80))[[2]])
+  
+  
+  colors = c(
+    "black",
+    "#66C9B2",
+    "#009F73",
+    "#007A58",
+    "#8FE3D1",
+    "#C2189B",
+    "#B00089",
+    "#870066",
+    
+    "#D66BB8"
+  )
+  box_color = "#F2F2F2"
+  #Marginal difference for the threshold
+  
+  alpha = hdi %>% 
+    filter(parameter == "Threshold") %>% ungroup() %>% 
+    add_row(model = "",comparison = "", parameter = "Threshold", mean = NA, q_95h = NA, q_5l = NA, q_80h = NA, q_20l = NA) %>% 
+    # mutate(Contrast = factor(Contrast, levels = c("Bisoprolol - Placebo", "", "Propanalol - Placebo"))) %>% 
+    mutate(y_val = as.numeric(as.factor(comparison)),
+           comparison = as.factor(comparison)) %>% 
+    mutate(model_comparison = interaction(model, comparison)) %>% 
+    mutate(model_comparison = factor(model_comparison, 
+                                     levels = c(
+                                       "no_control.biso", 
+                                       "avgHR_control.biso", 
+                                       "avgHR&avgSDHR_control.biso",
+                                       "Final.biso",
+                                       "no_control.prop", 
+                                       "avgHR_control.prop", 
+                                       "avgHR&avgSDHR_control.prop",
+                                       "Final.prop"
+                                     ))) %>% 
+    
+    mutate(y_val = ifelse(comparison == "prop",y_val+4,y_val)) %>% 
+    ggplot(aes(col = interaction(model,comparison), group = model_comparison))+
+    # geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, show.legend = FALSE)+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 0, size = 1.2, position = position_dodge(width = 1))+
+    
+    facet_wrap(~parameter, scales = "free")+
+    theme_classic()+
+    xlab("")+
+    ylab("")+
+    scale_x_continuous(breaks = c(0,2.5,5.5), labels = c("0","2.5","5"))+
+    coord_cartesian(xlim = c(0,6), ylim = c(0,9))+
+    geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 12), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
+    theme(legend.position = "none",
+          axis.text.y = element_blank(),
+          axis.line.y = element_blank(),        # Remove the y-axis line
+          strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
+          axis.ticks.y = element_blank())+scale_color_manual(values = colors)+  # Ensures no padding below x-axis
+    theme(text = element_text(size = fontsize),           # All text
+          axis.title = element_text(size = fontsize),     # Axis titles
+          axis.text.x = element_text(size = fontsize),      # Axis tick labels
+          legend.text = element_text(size = fontsize),    # Legend text
+          legend.title = element_text(size = fontsize),   # Legend title
+          plot.title = element_text(size = fontsize),      # Plot title
+          axis.line.x = element_line(linewidth = line_width) 
+    )
+  
+  alpha
+  
+  #for the slope
+  
+  beta = hdi %>% 
+    filter(parameter == "Slope") %>% ungroup() %>% 
+    add_row(model = "",comparison = "", parameter = "Slope", mean = NA, q_95h = NA, q_5l = NA, q_80h = NA, q_20l = NA) %>% 
+    # mutate(Contrast = factor(Contrast, levels = c("Bisoprolol - Placebo", "", "Propanalol - Placebo"))) %>% 
+    mutate(y_val = as.numeric(as.factor(comparison)),
+           comparison = as.factor(comparison)) %>% 
+    mutate(y_val = ifelse(comparison == "prop",y_val+4,y_val)) %>% 
+    mutate(model_comparison = interaction(model, comparison)) %>% 
+    mutate(model_comparison = factor(model_comparison, 
+                                     levels = c(
+                                       "no_control.biso", 
+                                       "avgHR_control.biso", 
+                                       "avgHR&avgSDHR_control.biso",
+                                       "Final.biso",
+                                       "no_control.prop", 
+                                       "avgHR_control.prop", 
+                                       "avgHR&avgSDHR_control.prop",
+                                       "Final.prop"
+                                     ))) %>% 
+    ggplot(aes(col = interaction(model,comparison), group = model_comparison))+
+    # geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, show.legend = FALSE)+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 0, size = 1.2, position = position_dodge(width = 1))+
+    geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 12), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
+    facet_wrap(~parameter, scales = "free")+
+    theme_classic()+ theme(
+      axis.title.y = element_blank(),       # Remove y-axis title
+      axis.text.y = element_blank(),        # Remove y-axis text labels
+      strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
+      axis.ticks.y = element_blank(),       # Remove y-axis ticks
+      axis.line.y = element_blank(),        # Remove the y-axis line
+      panel.spacing = unit(1, "lines")      # Optional: Adjust space between facets
+    )+
+    xlab("Differences in parameter estimates")+
+    xlab("")+
+    scale_x_continuous(breaks = c(-0.2,0,0.2), labels = c("-0.2","0","0.2"))+
+    coord_cartesian(xlim = c(-0.25,0.25), ylim = c(0,9))+
+    theme(legend.position = "none")+
+    scale_color_manual(values = colors)+
+    theme(
+      text = element_text(size = fontsize),           # All text
+      axis.title = element_text(size = fontsize),     # Axis titles
+      axis.text.x = element_text(size = fontsize),      # Axis tick labels
+      legend.text = element_text(size = fontsize),    # Legend text
+      legend.title = element_text(size = fontsize),   # Legend title
+      plot.title = element_text(size = fontsize),      # Plot title
+      axis.line.x = element_line(linewidth = line_width) 
+    )
+  
+  
+  beta
+  
+  # for the lapse rate:
+  
+  lapse = hdi %>% 
+    filter(parameter == "Lapse") %>% ungroup() %>% 
+    add_row(model = "",comparison = "", parameter = "Lapse", mean = NA, q_95h = NA, q_5l = NA, q_80h = NA, q_20l = NA) %>% 
+    # mutate(Contrast = factor(Contrast, levels = c("Bisoprolol - Placebo", "", "Propanalol - Placebo"))) %>% 
+    mutate(y_val = as.numeric(as.factor(comparison)),
+           comparison = as.factor(comparison)) %>% 
+    mutate(model_comparison = interaction(model, comparison)) %>% 
+    mutate(model_comparison = factor(model_comparison, 
+                                     levels = c(
+                                       "no_control.biso", 
+                                       "avgHR_control.biso", 
+                                       "avgHR&avgSDHR_control.biso",
+                                       "Final.biso",
+                                       "no_control.prop", 
+                                       "avgHR_control.prop", 
+                                       "avgHR&avgSDHR_control.prop",
+                                       "Final.prop"
+                                     ))) %>% 
+    mutate(y_val = ifelse(comparison == "prop",y_val+4,y_val)) %>% 
+    ggplot(aes(col = interaction(model,comparison), group = model_comparison))+
+    # geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, show.legend = FALSE)+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 0, size = 1.2, position = position_dodge(width = 1))+
+    geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 12), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
+    facet_wrap(~parameter, scales = "free")+
+    theme_classic()  + 
+    theme(
+      axis.title.y = element_blank(),       # Remove y-axis title
+      axis.text.y = element_blank(),        # Remove y-axis text labels
+      strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
+      axis.ticks.y = element_blank(),       # Remove y-axis ticks
+      axis.line.y = element_blank(),        # Remove the y-axis line
+      panel.spacing = unit(1, "lines")      # Optional: Adjust space between facets
+    )+
+    xlab("")+
+    theme(legend.position = "none")+scale_color_manual(values = colors)+
+    scale_x_continuous(breaks = c(-4,0,4), labels = c("-4","0","4"))+
+    coord_cartesian(xlim = c(-4.5,4.5), ylim = c(0,9))+
+    theme(
+      text = element_text(size = fontsize),           # All text
+      axis.title = element_text(size = fontsize),     # Axis titles
+      axis.text.x = element_text(size = fontsize),      # Axis tick labels
+      legend.text = element_text(size = fontsize),    # Legend text
+      legend.title = element_text(size = fontsize),   # Legend title
+      plot.title = element_text(size = fontsize),      # Plot title
+      axis.line.x = element_line(linewidth = line_width) 
+    )
+  
+  lapse
+  
+  library(patchwork)
+  p1 = alpha|beta|lapse
+  
+  
+  ggsave(here::here("figures","revisions","plot2_revision_v2.tiff"),p1, height = 8, width = 9, units = "in", dpi = 400)
+  
+  
+  
+  
+  ## rrst
+  
+  RRST_nocontrol <- readRDS(here::here("STAN models","RRST.RDS"))
+  RRST_doublecontrol <-readRDS(here::here("STAN models","revisions","RRST_doublecontrol.RDS")) 
+  RRST_control<-readRDS(here::here("STAN models","revisions","RRST_control.RDS")) 
+  RRST_final<-readRDS(here::here("STAN models","revisions","revisions_v2","RRST_final.RDS")) 
+  
+  
+  
+  library(tidyverse)
+  library(posterior)
+  
+  names = c("Slope_placebo_vs_biso","Slope_placebo_vs_prop","Lapse_placebo_vs_biso","Lapse_placebo_vs_prop","Threshold_placebo_vs_biso","Threshold_placebo_vs_prop")
+  
+  dd = rbind(
+    RRST_control$draws(c("gm[2]","gm[3]","gm[6]","gm[7]","gm[9]","gm[10]")) %>% as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names) %>% 
+      mutate(model = "avgHR_control"),
+    RRST_nocontrol$draws(c("gm[2]","gm[3]","gm[5]","gm[6]","gm[8]","gm[9]")) %>% as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names) %>% 
+      mutate(model = "no_control"),
+    RRST_doublecontrol$draws(c("gm[2]","gm[3]","gm[7]","gm[8]","gm[10]","gm[11]")) %>% as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names)%>% 
+      mutate(model = "avgHR&avgSDHR_control"),
+    RRST_final$draws(c("gm[2]","gm[3]","gm[7]","gm[8]","gm[10]","gm[11]")) %>% as_draws_df() %>% 
+      select(-contains(".")) %>% 
+      rename_with(~names)%>% 
+      mutate(model = "Final")
+  ) %>% 
+    pivot_longer(
+      cols = -model,
+      names_to = c("parameter", "comparison"),
+      names_sep = "_placebo_vs_",
+      values_to = "value"
+    )
+  
+  
+  hdi =dd %>% group_by(model,parameter,comparison) %>% summarize(mean = mean(value),
+                                                                 q_95h = quantile2(value, probs = c(0.05,0.95))[[1]],
+                                                                 q_5l = quantile2(value, probs = c(0.05,0.95))[[2]],
+                                                                 q_80h = quantile2(value, probs = c(0.20,0.80))[[1]],
+                                                                 q_20l = quantile2(value, probs = c(0.20,0.80))[[2]])
+  
+  
+  colors = c(
+    "black",
+    "#66C9B2",
+    "#009F73",
+    "#007A58",
+    "#8FE3D1",
+    "#C2189B",
+    "#B00089",
+    "#870066",
+    
+    "#D66BB8"
+  )
+  box_color = "#F2F2F2"
+  #Marginal difference for the threshold
+  
+  
+  
+  alpha2 = hdi %>% 
+    filter(parameter == "Threshold") %>% ungroup() %>% 
+    add_row(model = "",comparison = "", parameter = "Threshold", mean = NA, q_95h = NA, q_5l = NA, q_80h = NA, q_20l = NA) %>% 
+    # mutate(Contrast = factor(Contrast, levels = c("Bisoprolol - Placebo", "", "Propanalol - Placebo"))) %>% 
+    mutate(y_val = as.numeric(as.factor(comparison)),
+           comparison = as.factor(comparison)) %>% 
+    mutate(y_val = ifelse(comparison == "prop",y_val+4,y_val)) %>% 
+    mutate(model_comparison = interaction(model, comparison)) %>% 
+    mutate(model_comparison = factor(model_comparison, 
+                                     levels = c(
+                                       "no_control.biso", 
+                                       "avgHR_control.biso", 
+                                       "avgHR&avgSDHR_control.biso",
+                                       "Final.biso",
+                                       "no_control.prop", 
+                                       "avgHR_control.prop", 
+                                       "avgHR&avgSDHR_control.prop",
+                                       "Final.prop"
+                                     ))) %>% 
+    ggplot(aes(col = interaction(model,comparison), group = model_comparison))+
+    # geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, show.legend = FALSE)+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 0, size = 1.2, position = position_dodge(width = 1))+
+    facet_wrap(~parameter, scales = "free")+
+    theme_classic()+
+    xlab("")+
+    ylab("")+
+    scale_x_continuous(breaks = c(-1,0,1), labels = c("-1","0","1"))+
+    coord_cartesian(xlim = c(-1,1), ylim = c(0,9))+
+    geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 12), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
+    theme(legend.position = "none",
+          axis.text.y = element_blank(),
+          axis.line.y = element_blank(),        # Remove the y-axis line
+          strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
+          axis.ticks.y = element_blank())+scale_color_manual(values = colors)+  # Ensures no padding below x-axis
+    theme(text = element_text(size = fontsize),           # All text
+          axis.title = element_text(size = fontsize),     # Axis titles
+          axis.text.x = element_text(size = fontsize),      # Axis tick labels
+          legend.text = element_text(size = fontsize),    # Legend text
+          legend.title = element_text(size = fontsize),   # Legend title
+          plot.title = element_text(size = fontsize),      # Plot title
+          axis.line.x = element_line(linewidth = line_width) 
+    )
+  
+  alpha2
+  
+  #for the slope
+  
+  beta2 = hdi %>% 
+    filter(parameter == "Slope") %>% ungroup() %>% 
+    add_row(model = "",comparison = "", parameter = "Slope", mean = NA, q_95h = NA, q_5l = NA, q_80h = NA, q_20l = NA) %>% 
+    # mutate(Contrast = factor(Contrast, levels = c("Bisoprolol - Placebo", "", "Propanalol - Placebo"))) %>% 
+    mutate(y_val = as.numeric(as.factor(comparison)),
+           comparison = as.factor(comparison)) %>% 
+    mutate(y_val = ifelse(comparison == "prop",y_val+4,y_val)) %>% 
+    mutate(model_comparison = interaction(model, comparison)) %>% 
+    mutate(model_comparison = factor(model_comparison, 
+                                     levels = c(
+                                       "no_control.biso", 
+                                       "avgHR_control.biso", 
+                                       "avgHR&avgSDHR_control.biso",
+                                       "Final.biso",
+                                       "no_control.prop", 
+                                       "avgHR_control.prop", 
+                                       "avgHR&avgSDHR_control.prop",
+                                       "Final.prop"
+                                     ))) %>% 
+    ggplot(aes(col = interaction(model,comparison), group = model_comparison))+
+    # geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, show.legend = FALSE)+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 0, size = 1.2, position = position_dodge(width = 1))+
+    geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 12), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
+    facet_wrap(~parameter, scales = "free")+
+    theme_classic()+ theme(
+      axis.title.y = element_blank(),       # Remove y-axis title
+      axis.text.y = element_blank(),        # Remove y-axis text labels
+      strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
+      axis.ticks.y = element_blank(),       # Remove y-axis ticks
+      axis.line.y = element_blank(),        # Remove the y-axis line
+      panel.spacing = unit(1, "lines")      # Optional: Adjust space between facets
+    )+
+    xlab("Differences in parameter estimates")+
+    xlab("")+
+    scale_x_continuous(breaks = c(0,0.4,0.8), labels = c("0","0.4","0.8"))+
+    coord_cartesian(xlim = c(0,0.8), ylim = c(0,9))+
+    theme(legend.position = "none")+
+    scale_color_manual(values = colors)+
+    theme(
+      text = element_text(size = fontsize),           # All text
+      axis.title = element_text(size = fontsize),     # Axis titles
+      axis.text.x = element_text(size = fontsize),      # Axis tick labels
+      legend.text = element_text(size = fontsize),    # Legend text
+      legend.title = element_text(size = fontsize),   # Legend title
+      plot.title = element_text(size = fontsize),      # Plot title
+      axis.line.x = element_line(linewidth = line_width) 
+    )
+  
+  
+  beta2
+  
+  # for the lapse rate:
+  
+  lapse2 = hdi %>% 
+    filter(parameter == "Lapse") %>% ungroup() %>% 
+    add_row(model = "",comparison = "", parameter = "Lapse", mean = NA, q_95h = NA, q_5l = NA, q_80h = NA, q_20l = NA) %>% 
+    # mutate(Contrast = factor(Contrast, levels = c("Bisoprolol - Placebo", "", "Propanalol - Placebo"))) %>% 
+    mutate(y_val = as.numeric(as.factor(comparison)),
+           comparison = as.factor(comparison)) %>% 
+    mutate(y_val = ifelse(comparison == "prop",y_val+4,y_val)) %>% 
+    mutate(model_comparison = interaction(model, comparison)) %>% 
+    mutate(model_comparison = factor(model_comparison, 
+                                     levels = c(
+                                       "no_control.biso", 
+                                       "avgHR_control.biso", 
+                                       "avgHR&avgSDHR_control.biso",
+                                       "Final.biso",
+                                       "no_control.prop", 
+                                       "avgHR_control.prop", 
+                                       "avgHR&avgSDHR_control.prop",
+                                       "Final.prop"
+                                     ))) %>% 
+    ggplot(aes(col = interaction(model,comparison), group = model_comparison))+
+    # geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, show.legend = FALSE)+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 0, size = 1.2, position = position_dodge(width = 1))+
+    geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 12), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
+    facet_wrap(~parameter, scales = "free")+
+    theme_classic()  + 
+    theme(
+      axis.title.y = element_blank(),       # Remove y-axis title
+      axis.text.y = element_blank(),        # Remove y-axis text labels
+      strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
+      axis.ticks.y = element_blank(),       # Remove y-axis ticks
+      axis.line.y = element_blank(),        # Remove the y-axis line
+      panel.spacing = unit(1, "lines")      # Optional: Adjust space between facets
+    )+
+    xlab("")+
+    theme(legend.position = "none")+scale_color_manual(values = colors)+
+    scale_x_continuous(breaks = c(-2,0,1), labels = c("-2","0","1"))+
+    coord_cartesian(xlim = c(-2.5,2), ylim = c(0,9))+
+    theme(
+      text = element_text(size = fontsize),           # All text
+      axis.title = element_text(size = fontsize),     # Axis titles
+      axis.text.x = element_text(size = fontsize),      # Axis tick labels
+      legend.text = element_text(size = fontsize),    # Legend text
+      legend.title = element_text(size = fontsize),   # Legend title
+      plot.title = element_text(size = fontsize),      # Plot title
+      axis.line.x = element_line(linewidth = line_width) 
+    )
+  
+  lapse2
+  
+  library(patchwork)
+  p2 = alpha2|beta2|lapse2
+  
+  ggsave(here::here("figures","revisions","plot2_revisionRRST_v2.tiff"),p1, height = 8, width = 9, units = "in", dpi = 400)
+  
+  # legend:
+  
+  legend = hdi %>% 
+    filter(parameter == "Lapse") %>% ungroup() %>% 
+    add_row(model = "",comparison = "", parameter = "Lapse", mean = NA, q_95h = NA, q_5l = NA, q_80h = NA, q_20l = NA) %>% 
+    # mutate(Contrast = factor(Contrast, levels = c("Bisoprolol - Placebo", "", "Propanalol - Placebo"))) %>% 
+    mutate(y_val = as.numeric(as.factor(comparison)),
+           comparison = as.factor(comparison)) %>% 
+    mutate(y_val = ifelse(comparison == "prop",y_val+4,y_val)) %>% 
+    mutate(model_comparison = interaction(model, comparison)) %>% 
+    mutate(model_comparison = factor(model_comparison, 
+                                     levels = c(
+                                       "no_control.biso", 
+                                       "avgHR_control.biso", 
+                                       "avgHR&avgSDHR_control.biso",
+                                       "Final.biso",
+                                       "no_control.prop", 
+                                       "avgHR_control.prop", 
+                                       "avgHR&avgSDHR_control.prop",
+                                       "Final.prop"
+                                     ))) %>% 
+    ggplot(aes(col = interaction(model,comparison), group = model_comparison))+
+    # geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, show.legend = FALSE)+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_5l, xmax = q_95h), linewidth = 1.5, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 3, position = position_dodge(width = 1))+
+    geom_pointrange(aes(y = y_val, x = mean, xmin = q_80h, xmax = q_20l),linewidth = 0, size = 1.2, position = position_dodge(width = 1))+
+    geom_segment(aes(x = 0, xend = 0, y = -2.3,yend = 12), linetype = 2, linewidth = line_width, col = "#1200A8", show.legend = FALSE)+
+    facet_wrap(~parameter, scales = "free")+
+    theme_classic()  + 
+    theme(
+      axis.title.y = element_blank(),       # Remove y-axis title
+      axis.text.y = element_blank(),        # Remove y-axis text labels
+      strip.background = element_rect(fill = box_color, color = "white"),  # Default box style
+      axis.ticks.y = element_blank(),       # Remove y-axis ticks
+      axis.line.y = element_blank(),        # Remove the y-axis line
+      panel.spacing = unit(1, "lines")      # Optional: Adjust space between facets
+    )+
+    xlab("")+
+    scale_color_manual(values = colors)+
+    scale_x_continuous(breaks = c(-2,0,1), labels = c("-2","0","1"))+
+    coord_cartesian(xlim = c(-2.5,2), ylim = c(0,9))+
+    theme(
+      text = element_text(size = fontsize),           # All text
+      axis.title = element_text(size = fontsize),     # Axis titles
+      axis.text.x = element_text(size = fontsize),      # Axis tick labels
+      legend.text = element_text(size = fontsize),    # Legend text
+      legend.title = element_text(size = fontsize),   # Legend title
+      plot.title = element_text(size = fontsize),      # Plot title
+      axis.line.x = element_line(linewidth = line_width) 
+    )
+  
+  legend
+  ggsave(here::here("figures","revisions","plot2_revision_revisionsv2_legend.tiff"),legend, height = 8, width = 9, units = "in", dpi = 400)
+  
+  marginaleffects = alpha | beta | lapse | alpha2 | beta2 | lapse2
+  
+  ggsave(here::here("figures","revisions","plot2_revision_revisionsv2_marginaleffects.tiff"),marginaleffects, height = 8, width = 16, units = "in", dpi = 100)
+  
+  
 }
 
 

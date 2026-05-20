@@ -1,0 +1,488 @@
+---
+title: "Beta_intero_analysis"
+output:
+  word_document: default
+  html_document: default
+date: "2024-08-10"
+---
+
+## here we do the same analysis as for the first revision but investigate what happens if we additionally include a measures of whether subjects guessed the right drug condition together with heart rate varability and average heart rate across the task for both tasks.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes,grid,ez,
+               lsmeans, brms,lmerTest,glmmTMB,sjPlot,ggeffects, patchwork, cowplot,ggpubr,flextable, ordinal)
+
+
+source(here::here("scripts","plots.R"))
+
+```
+
+## HRD analysis
+```{r, fig.width=10, fig.height=10}
+z_score = function(x){
+  return((x - mean(x)) / sd(x))
+}
+
+hrd1 = read.csv(here::here("data","HRD_trial_level_data.csv"))
+
+
+drugguess_data <- read_csv(here::here("data","drugguess_data.csv")) %>% 
+  mutate(drugs = ifelse(ActualDrug == "plac","PLACEBO",ifelse(ActualDrug == "biso","BISO","PROP")),
+         subject = paste0("sub_",SubNo)) %>% 
+  mutate(SubNo = NULL)
+
+
+
+
+data <- inner_join(hrd1,drugguess_data) %>%
+  mutate(
+    resp = ifelse(Decision == "More", 1, 0),
+    condition = as.numeric(drugs),
+    BISO_vs_PLACEBO = case_when(
+      drugs == "PLACEBO" ~ 0,
+      drugs == "BISO" ~ 1,
+      drugs == "PROP" ~ 0,
+      TRUE ~ NA_real_  # Use NA_real_ for numeric NA
+    ),
+    PROP_vs_PLACEBO = case_when(
+      drugs == "PLACEBO" ~ 0,
+      drugs == "BISO" ~ 0,
+      drugs == "PROP" ~ 1,
+      TRUE ~ NA_real_  # Use NA_real_ for numeric NA
+    ),
+    
+  ) %>% 
+  mutate(trials = 1:n()) %>% 
+  mutate(prediction = ifelse(ActualDrug == GuessedDrug,1,0)) %>% 
+  select(resp, drugs, subject, Alpha, trials, BISO_vs_PLACEBO,PROP_vs_PLACEBO,listenBPM,Confidence,ResponseCorrect,prediction) %>%
+  # drop_na() %>%
+  mutate(sub = as.numeric(as.factor(subject)))
+
+
+```
+
+
+
+## fit the psychometric function
+```{r, fig.width=10, fig.height=10}
+# first two (bad data) last one due to unblinding
+
+outliers_hrd = c("sub_4043","sub_4024","sub_4049")
+
+mod = cmdstanr::cmdstan_model(here::here("scripts","stanmodels","revisions","revisions_v2","HRD_final.stan"),stanc_options = list("O1"))
+
+avg_hr = data %>% group_by(drugs,sub) %>% 
+  summarise(avg_hr = mean(listenBPM),
+            sd_hr = sd(listenBPM)) %>% 
+  ungroup() %>% 
+  mutate(avg_hr = z_score(avg_hr),
+         sd_hr = z_score(sd_hr))
+
+data = inner_join(avg_hr,data)
+
+df1_nooutlier = data %>% filter(!subject %in% outliers_hrd) %>% 
+  mutate(sub = as.numeric(as.factor(sub)))%>% 
+  arrange(sub,drugs) %>% 
+  group_by(sub,drugs) %>% 
+  mutate(trials_per_id = 1:n()) %>% 
+  ungroup() %>% 
+  mutate(full_trials = 1:n(), trials = NULL)
+
+# write.csv(df1_nooutlier,here::here("data","cleaned","HRD.csv"))
+
+datastan = list(T = nrow(df1_nooutlier),
+                S = length(unique(df1_nooutlier$sub)),
+                S_id = as.numeric(df1_nooutlier$sub),
+                X = df1_nooutlier %>% .$Alpha,
+                X_lapse = (as.matrix((data.frame(int = rep(1,nrow(df1_nooutlier)),
+                                                 placebo_vs_biso = df1_nooutlier %>% .$BISO_vs_PLACEBO,
+                                                 placebo_vs_prop = df1_nooutlier %>% .$PROP_vs_PLACEBO)))),
+                
+                X_alpha = (as.matrix((data.frame(int = rep(1,nrow(df1_nooutlier)),
+                                                 placebo_vs_biso = df1_nooutlier %>% .$BISO_vs_PLACEBO,
+                                                 placebo_vs_prop = df1_nooutlier %>% .$PROP_vs_PLACEBO,
+                                                 avg_hr = df1_nooutlier %>% .$avg_hr,
+                                                 sd_hr = df1_nooutlier$sd_hr
+                                                 )))),
+                
+                X_beta = (as.matrix((data.frame(int = rep(1,nrow(df1_nooutlier)),
+                                                placebo_vs_biso = df1_nooutlier %>% .$BISO_vs_PLACEBO,
+                                                placebo_vs_prop = df1_nooutlier %>% .$PROP_vs_PLACEBO,
+                                                avg_hr = df1_nooutlier %>% .$avg_hr,
+                                                sd_hr = df1_nooutlier$sd_hr
+                                                )))),
+                N_alpha = 5,
+                N_beta = 5,
+                N_lapse = 3,
+                prediction = df1_nooutlier$prediction,
+                
+                Y = df1_nooutlier  %>% .$resp
+                
+)
+
+## fitting
+HRD_final <- mod$sample(
+  data = datastan,
+  iter_sampling = 2500,
+  iter_warmup = 2500,
+  chains = 4,
+  init = 0,
+  parallel_chains = 4,
+  refresh = 50,
+  adapt_delta = 0.99,
+  max_treedepth = 12
+)
+HRD_final$save_object(here::here("STAN models","HRD_final.RDS"))  
+
+if(dir.exists(here::here("STAN models"))){
+  HRD_double$save_object(here::here("STAN models","HRD_full.RDS"))  
+}else{
+  dir.create(here::here("STAN models"))
+  HRD$save_object(here::here("STAN models","HRD.RDS"))
+}
+
+HRD_doublecontrol <- readRDS("~/Beta-Blocker_mine/STAN models/revisions/revisions_v2/HRD_final.RDS")
+
+## Threshold
+HRD_doublecontrol$summary(c("gm[2]","gm[3]"))
+as_draws_df(HRD_doublecontrol$draws(c("gm[2]","gm[3]"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% summarize(1-sum(value>0)/n(),
+                                                              mean = mean(value),
+                                                              q5 = hdi(value)[1],
+                                                              q95 = hdi(value)[2])
+
+
+## Slopes
+HRD_doublecontrol$summary(c("gm[7]","gm[8]"))
+as_draws_df(HRD_doublecontrol$draws(c("gm[7]","gm[8]"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% summarize(1-sum(value>0)/n(),
+                                                              mean = mean(value),
+                                                              q5 = hdi(value)[1],
+                                                              q95 = hdi(value)[2])
+
+## Lapse rate
+HRD_doublecontrol$summary(c("gm[12]","gm[13]"))
+as_draws_df(HRD_doublecontrol$draws(c("gm[12]","gm[13]"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% summarize(1-sum(value>0)/n(),
+                                                              mean = mean(value),
+                                                              q5 = hdi(value)[1],
+                                                              q95 = hdi(value)[2])
+```
+
+
+### load data
+```{r}
+rrst = read.csv(here::here("data","RRST_trial_level_data.csv"))
+
+
+drugguess_data <- read_csv(here::here("data","drugguess_data.csv")) %>% 
+  mutate(drugs = ifelse(ActualDrug == "plac","PLACEBO",ifelse(ActualDrug == "biso","BISO","PROP")),
+         subject = paste0("sub_",SubNo)) %>% 
+  mutate(SubNo = NULL)
+
+
+
+data <- inner_join(rrst,drugguess_data) %>%
+  mutate(
+    sub = as.numeric(as.factor(subject)),
+    condition = as.numeric(drugs),
+    BISO_vs_PLACEBO = case_when(
+      drugs == "PLACEBO" ~ 0,
+      drugs == "BISO" ~ 1,
+      drugs == "PROP" ~ 0,
+      TRUE ~ NA_real_  # Use NA_real_ for numeric NA
+    ),
+    PROP_vs_PLACEBO = case_when(
+      drugs == "PLACEBO" ~ 0,
+      drugs == "BISO" ~ 0,
+      drugs == "PROP" ~ 1,
+      TRUE ~ NA_real_  # Use NA_real_ for numeric NA
+    ),
+    
+  ) %>%  mutate(trials = 1:n()) %>% 
+  mutate(trials = 1:n()) %>% 
+  mutate(prediction = ifelse(ActualDrug == GuessedDrug,1,0)) %>% 
+  select(Resp, drugs, subject, sub, Stim, trials, BISO_vs_PLACEBO,PROP_vs_PLACEBO, ConfResp,RespLR,prediction) %>%
+  drop_na() %>%
+  mutate(sub = as.numeric(as.factor(subject)))
+
+
+
+```
+
+```{r, fig.width=10, fig.height=10}
+
+
+# again 3 random responses and last unblinded
+badids = c("sub_4024","sub_4077","sub_4072","sub_4049")
+
+
+df1_remove_outlier = data %>% filter(!subject %in% badids)
+
+
+df1_remove_outlier = df1_remove_outlier %>% mutate(sub = as.numeric(as.factor(sub))) %>%
+  arrange(sub,drugs) %>% group_by(sub,drugs) %>%
+  mutate(trials_per_id = 1:n()) %>% ungroup() %>% mutate(full_trials = 1:n(), trials = NULL)
+
+# write.csv(df1_remove_outlier,here::here("data","cleaned","RRST.csv"))
+
+
+df1_remove_outlier = inner_join(avg_hr,df1_remove_outlier)
+
+
+RRST = cmdstanr::cmdstan_model(here::here("scripts","stanmodels","revisions","revisions_v2","RRST_final.stan"),stanc_options = list("O1"))
+
+datastan = list(T = nrow(df1_remove_outlier),
+                S = length(unique(df1_remove_outlier$sub)),
+                S_id = (df1_remove_outlier$sub),
+                X = df1_remove_outlier %>% .$Stim,
+                X_lapse = t(as.matrix((data.frame(int = rep(1,nrow(df1_remove_outlier)),
+                                                placebo_vs_biso = df1_remove_outlier %>% .$BISO_vs_PLACEBO,
+                                                placebo_vs_prop = df1_remove_outlier %>% .$PROP_vs_PLACEBO)))),
+                
+                X_alpha = t(as.matrix((data.frame(int = rep(1,nrow(df1_remove_outlier)),
+                                                placebo_vs_biso = df1_remove_outlier %>% .$BISO_vs_PLACEBO,
+                                                placebo_vs_prop = df1_remove_outlier %>% .$PROP_vs_PLACEBO,
+                                                avg_hr = df1_remove_outlier %>% .$avg_hr,
+                                                sd_hr = df1_remove_outlier$sd_hr
+                                                 )))),
+
+                X_beta = t(as.matrix((data.frame(int = rep(1,nrow(df1_remove_outlier)),
+                                                placebo_vs_biso = df1_remove_outlier %>% .$BISO_vs_PLACEBO,
+                                                placebo_vs_prop = df1_remove_outlier %>% .$PROP_vs_PLACEBO,
+                                                avg_hr = df1_remove_outlier %>% .$avg_hr,
+                                                 sd_hr = df1_remove_outlier$sd_hr
+                                                 )))),
+                
+                N_alpha = 5,
+                N_beta = 5,
+                N_lapse = 3,
+                prediction = df1_remove_outlier$prediction,
+                Y = df1_remove_outlier  %>% .$Resp
+)
+
+## fitting
+RRST_control <- RRST$sample(
+  data = datastan,
+  iter_sampling = 2500,
+  iter_warmup = 2500,
+  chains = 4,
+  parallel_chains = 4,
+  refresh = 50,
+  init = 0,
+  adapt_delta = 0.99,
+  max_treedepth = 12
+)
+RRST_control$save_object(here::here("STAN models","RRST_final.RDS"))
+```
+
+
+```{r}
+RRST_final <- readRDS("~/Beta-Blocker_mine/STAN models/revisions/revisions_v2/RRST_final.RDS")
+
+
+## Slope
+RRST_final$summary(c("gm[2]","gm[3]"))
+as_draws_df(RRST_final$draws(c("gm[2]","gm[3]"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% summarize(1-sum(value>0)/n(),
+                                                              mean = mean(value),
+                                                              q5 = hdi(value)[1],
+                                                              q95 = hdi(value)[2])
+
+## Threshold
+RRST_final$summary(c("gm[10]","gm[11]"))
+as_draws_df(RRST_final$draws(c("gm[10]","gm[11]"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% summarize(1-sum(value>0)/n(),
+                                                              mean = mean(value),
+                                                              q5 = hdi(value)[1],
+                                                              q95 = hdi(value)[2])
+
+
+## Lapse
+RRST_final$summary(c("gm[7]","gm[8]"))
+as_draws_df(RRST_final$draws(c("gm[7]","gm[8]"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% summarize(1-sum(value>0)/n(),
+                                                              mean = mean(value),
+                                                              q5 = hdi(value)[1],
+                                                              q95 = hdi(value)[2])
+
+```
+
+
+## Metacognition
+
+```{r, fig.width=12, fig.height=8}
+RRST_trial_data <- read_csv(here::here("data","cleaned","RRST.csv")) %>% 
+    filter(ConfResp >= 0 & ConfResp <= 100) %>%
+    mutate(Conf = ConfResp/100,
+           Stimulus = Stim,
+           Drug = factor(drugs, levels = c("PLACEBO", "PROP", "BISO"), labels = c("placebo", "propranolol", "bisoprolol")),
+           Drug = relevel(Drug, ref = "placebo"),
+           Condition = drugs,
+           Accuracy = factor(Resp, levels = c(1, 0), labels = c("Correct", "Incorrect"))
+           )
+
+
+# Cleaning RRST data
+RRST_trial_data <- clean_and_report(RRST_trial_data, "RRST_trial_data")
+
+  
+## Models
+
+# RRST - Ordered beta regression confidence model
+RRST_conf_model <- glmmTMB(
+  Conf ~ Stimulus + Drug * Accuracy + (1 + Stimulus + Accuracy | subject),
+  data = RRST_trial_data,
+  family = ordbeta(),
+  control = glmmTMBControl(optCtrl = list(iter.max = 1000, eval.max = 1000))
+)
+
+# summarise effects
+summary(RRST_conf_model)
+
+
+## plotting the estimated means and overlaying a grand average data.
+P1 = (ggemmeans(RRST_conf_model, terms = c("Stimulus","Accuracy" ,"Drug")))
+
+
+subj_data <- RRST_trial_data %>%
+  group_by(subject, Accuracy, Stimulus, Drug) %>%
+  summarize(mean_conf = mean(Conf), .groups = "drop") %>%
+  group_by(Accuracy, Stimulus, Drug) %>%
+  summarize(
+    mean = mean(mean_conf),
+    se = sd(mean_conf) / sqrt(n()),
+    q5 = mean - 2 * se,
+    q95 = mean + 2 * se,
+    .groups = "drop"
+  ) %>%
+  mutate(facet = Drug)
+
+
+data.frame(P1) %>% 
+  mutate(Accuracy = as.factor(group)) %>% 
+  ggplot()+
+  geom_line(aes(x = x, y = predicted, ymin = conf.low,, ymax = conf.high, fill = Accuracy))+
+  geom_ribbon(aes(x = x, y = predicted, ymin = conf.low,, ymax = conf.high, fill = Accuracy), alpha = 0.25)+
+  geom_pointrange(data = subj_data, aes(x = Stimulus, y = mean, ymin = q5,ymax = q95, fill = as.factor(Accuracy)),
+                  shape = 21,
+                  col = "black", 
+                  position = position_dodge(width = 1))+
+  scale_color_manual(values = c("green","red"))+
+  scale_fill_manual(values = c("green","red"))+
+  facet_wrap(~facet)+
+  labs(x = "Stimulus intensity (% RRes)",
+       y = "P(Response = faster | % RRes)")+
+  scale_x_continuous(breaks = c(4.25,8.5,12.75,17), labels = c(25,50,75,100))+
+  theme_classic(base_size = 16)
+
+
+```
+
+# HRD
+
+```{r, fig.width=12,fig.height=8}
+HRD_trl_data = read.csv(here::here("data","cleaned","HRD.csv")) %>% 
+  mutate(Conf = Confidence/100,
+         drugs = as.factor(drugs),
+         Drug = factor(drugs, levels = c("PLACEBO", "PROP", "BISO"), labels = c("placebo", "propranolol", "bisoprolol")),
+         Drug = relevel(Drug, ref = "placebo"),
+         ResponseCorrect = factor(ResponseCorrect, levels = c("True", "False"), labels = c("Correct", "Incorrect")),
+         BPM_scaled = scale(listenBPM),
+         Condition = drugs
+  ) %>% 
+  filter(subject != "sub_4049")
+
+# Cleaning HRD data
+HRD_trl_data <- clean_and_report(HRD_trl_data, "HRD_trl_data")
+
+# HRD - Ordered beta regression confidence model
+HRD_conf_model <- glmmTMB(
+  Conf ~ Drug * ResponseCorrect  + BPM_scaled +  (1  + ResponseCorrect + BPM_scaled | subject),
+  data = HRD_trl_data,
+  family = ordbeta(),
+  start = list(psi = c(0, 1)),
+  control = glmmTMBControl(optCtrl = list(iter.max = 1000, eval.max = 1000))
+)
+
+summary(HRD_conf_model)
+
+p1  = (ggemmeans(HRD_conf_model, terms = c("ResponseCorrect" ,"Drug")))
+
+
+breaks <- unique(quantile(HRD_trl_data$Alpha, probs = seq(0, 1, length.out = 9)))
+    
+    
+
+subj_data <-  HRD_trl_data %>% 
+    group_by(Drug) %>%
+   mutate(
+        bins = cut(Alpha, breaks = breaks, include.lowest = TRUE, labels = FALSE),
+        Alpha = sapply(bins, function(bin) mean(Alpha[bins == bin])),
+      )%>% 
+  # group_by(subject, ResponseCorrect, Drug, Alpha,bins) %>% 
+      mutate(Alpha_low = sapply(bins, function(bin) breaks[bin]),
+             Alpha_high = sapply(bins, function(bin) breaks[bin + 1])) %>% 
+    # mutate(Alpha = cut(Alpha,11))%>% 
+  group_by(subject, ResponseCorrect, Alpha, Drug) %>%
+  summarize(mean_conf = mean(Conf, na.rm = T), .groups = "drop") %>%
+  group_by(ResponseCorrect, Alpha, Drug) %>%
+  summarize(
+    mean = mean(mean_conf, na.rm = T),
+    se = sd(mean_conf, na.rm = T) / sqrt(n()),
+    q5 = mean - 2 * se,
+    q95 = mean + 2 * se,
+    .groups = "drop"
+  ) %>%
+  mutate(facet = Drug)
+
+
+preds <- data.frame(p1) %>%
+  rename(
+    Accuracy = x,
+    facet = group
+  ) %>%
+  tidyr::crossing(x = seq(min(subj_data$Alpha)-1, max(subj_data$Alpha)+1, by = 5))
+
+# preds = data.frame(facet = c("placebo","placebo","propranolol","propranolol","bisoprolol","bisoprolol"),
+#                    Accuracy = c("Correct","Incorrect","Correct","Incorrect","Correct","Incorrect"),
+#                    predicted = c(0.61,0.51,0.64,0.52,0.66,0.53),
+#                    conf.low = c(0.56,0.45,0.59,0.45,0.61,0.46),
+#                    conf.high = c(0.65,0.58,0.68,0.58,0.70,0.60)) %>% mutate(x = list(seq(0,6,by = 1))) %>% unnest()
+
+
+
+subj_data %>% 
+  mutate(Accuracy = as.factor(ResponseCorrect)) %>% 
+  ggplot()+
+    geom_pointrange(aes(x = Alpha, y = mean, ymin = q5,ymax = q95, fill = Accuracy), col = "black", shape = 21, position = position_dodge(width = 5))+
+  geom_line(data = preds,aes(x = x, y = predicted, col = Accuracy))+
+  geom_ribbon(data = preds,aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high, fill = Accuracy), alpha = 0.25)+
+  scale_color_manual(values = c("green","red"))+
+  scale_fill_manual(values = c("green","red"))+
+  facet_wrap(~facet,scales = "free")+
+  theme_classic(base_size = 16)+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(x =  "Binned Stimulus intensity (ΔBPM)",
+       y = "P(Response = faster | ΔBPM)")
+
+
+```
+
+
+```{r, fig.width=8,fig.height=8}
+# Obtain the estimated marginal means (EMMs) for the interaction term
+HRD_emm <- emmeans(HRD_conf_model, ~ Drug * ResponseCorrect)
+
+# Conduct post-hoc pairwise comparisons with t-tests for the Drug x ResponseCorrect interaction
+posthoc_tests <- pairs(HRD_emm, by = "ResponseCorrect", adjust = "holm")
+
+# View the results of the post-hoc tests
+summary(posthoc_tests)
+
+# table_HRD = get_main_tables(HRD_conf_model,round = 2)
+# table_HRD
+```
+
