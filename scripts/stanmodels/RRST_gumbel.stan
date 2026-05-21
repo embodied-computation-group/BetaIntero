@@ -90,20 +90,24 @@ model{
   target += normal_lpdf(gm[3] | 0, 3); //global mean of beta_dif
   
   target += normal_lpdf(gm[4] | -4,2); //global mean of lapse
-  target += normal_lpdf(gm[5] | 0,1); //global mean of lapse
-  target += normal_lpdf(gm[6] | 0,1); //global mean of lapse
+  target += normal_lpdf(gm[5] | 0,1); //global mean of lapse_dif
+  target += normal_lpdf(gm[6] | 0,1); //global mean of lapse_dif
 
   
-  target += normal_lpdf(gm[7] | 10,10); //global mean of guess
+  target += normal_lpdf(gm[7] | 10,10); //global mean of alpha
   
-  target += normal_lpdf(gm[8] | 0,5); //global mean of alpha
+  target += normal_lpdf(gm[8] | 0,5); //global mean of alpha_dif
   
   target += normal_lpdf(gm[9] | 0,5); //global mean of alpha_dif
   
+  # correlation matrix
   target += lkj_corr_cholesky_lpdf(L_u | 2);
 
+  #standardized subject level deviations (non-centered parameterization)
   target += std_normal_lpdf(to_vector(z_expo));
   
+  # between subject variances.
+
   target += normal_lpdf(tau_u[1] | 0, 3);
   target += normal_lpdf(tau_u[2] | 0, 3);
   

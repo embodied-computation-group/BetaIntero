@@ -4,6 +4,8 @@ output: html_document
 date: "2024-08-10"
 ---
 
+# R-markdown that runs through all the scripts for producing main plots of the paper
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes, furrr,

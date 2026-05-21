@@ -6,6 +6,8 @@ output:
 date: "2024-08-10"
 ---
 
+# load packages and scripts
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes,grid,ez,
@@ -16,7 +18,7 @@ source(here::here("scripts","plots.R"))
 
 ```
 
-## HRD analysis
+## HRD analysis (Psychophysics)
 ```{r, fig.width=10, fig.height=10}
 z_score = function(x){
   return((x - mean(x)) / sd(x))
@@ -56,14 +58,17 @@ data %>% drop_na() %>% group_by(Alpha,subject,drugs) %>% summarize(prop = sum(re
     method.args = list(family = "binomial"), 
     se = FALSE)+
   facet_wrap(~subject)
+```
 
+## Plotting each subject data (confidence ratings)
+```{r, warning=F, error=F, fig.width=10,fig.height=8}
 data %>% drop_na() %>% group_by(Alpha,subject,drugs) %>% summarize(prop = mean(Confidence), se = sd(Confidence)/sqrt(n())) %>% 
     ggplot(aes(x = Alpha, y = prop, col = drugs))+geom_point()+
   theme_classic()+
   facet_wrap(~subject)
 ```
 
-## fit the psychometric function
+## fit the psychometric function (controlling for average HR)
 ```{r, fig.width=10, fig.height=10}
 # first two (bad data) last one due to unblinding
 
@@ -177,7 +182,7 @@ data <- rrst %>%
   mutate(sub = as.numeric(as.factor(subject)))
 ```
 
-# plot psychometric
+# plot psychometric function
 ```{r, warning=F, error=F, fig.width=10,fig.height=8}
 data %>% drop_na() %>% group_by(Stim,subject,drugs) %>% summarize(prop = sum(Resp)/n(), n = n()) %>% 
     ggplot(aes(x = Stim, y = prop, col = drugs))+geom_point(aes(size = n))+
@@ -271,8 +276,11 @@ as_draws_df(RRST$draws(c("gm[5]","gm[6]"))) %>% select(-contains(".")) %>%
 ```
 
 
-## Metacognition:
+# Metacognition:
 
+## RRST
+
+### load data
 ```{r}
 source(here::here("scripts","plots.R"))
 
@@ -288,9 +296,11 @@ RRST_trial_data <- read_csv(here::here("data","cleaned","RRST.csv")) %>%
   
 # Cleaning RRST data
 RRST_trial_data <- clean_and_report(RRST_trial_data, "RRST_trial_data")
+```
 
-  
-## Models
+### Model
+
+```{r}
 
 # RRST - Ordered beta regression confidence model
 RRST_conf_model <- glmmTMB(
@@ -305,6 +315,7 @@ summary(RRST_conf_model)
 
 ```
 
+## HRD load data
 
 ```{r}
 HRD_trl_data = read.csv(here::here("data","cleaned","HRD.csv")) %>% 
@@ -320,7 +331,12 @@ HRD_trl_data = read.csv(here::here("data","cleaned","HRD.csv")) %>%
 
 # Cleaning HRD data
 HRD_trl_data <- clean_and_report(HRD_trl_data, "HRD_trl_data")
+```
 
+
+## HRD fit model
+
+```{r}
 # HRD - Ordered beta regression confidence model
 HRD_conf_model <- glmmTMB(
   Conf ~ Drug * ResponseCorrect + BPM_scaled +  (1  + ResponseCorrect + BPM_scaled | subject),

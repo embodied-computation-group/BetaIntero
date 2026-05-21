@@ -6,6 +6,8 @@ output:
 date: "2024-08-10"
 ---
 
+# R markdown for generating main tables
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes,

@@ -83,33 +83,35 @@ model{
   // priors:
   target += normal_lpdf(gm[1] | -10,5); //global mean of alpha
 
-  target += normal_lpdf(gm[2] | 0,5); //global mean of alpha
+  target += normal_lpdf(gm[2] | 0,5); //global mean of difference between alpha
   
-  target += normal_lpdf(gm[3] | 0,5); //global mean of alpha
+  target += normal_lpdf(gm[3] | 0,5); //global mean of difference between alpha
   
-  target += normal_lpdf(gm[4] | 0,5); //global mean of alpha
+  target += normal_lpdf(gm[4] | 0,5); //global mean of average HR on alpha
   
-  target += normal_lpdf(gm[5] | 0,5); //global mean of alpha
+  target += normal_lpdf(gm[5] | 0,5); //global mean of average HRV on alpha
   
   target += normal_lpdf(gm[6] | 2.25,0.5); //global mean of beta
   
-  target += normal_lpdf(gm[7] | 0, 3); //global mean of beta
+  target += normal_lpdf(gm[7] | 0, 3); //global mean of difference between beta
   
-  target += normal_lpdf(gm[8] | 0, 3); //global mean of beta
+  target += normal_lpdf(gm[8] | 0, 3); //global mean of difference between beta
   
-  target += normal_lpdf(gm[9] | 0, 3); //global mean of beta
+  target += normal_lpdf(gm[9] | 0, 3); //global mean of average HR between beta
   
-  target += normal_lpdf(gm[10] | 0, 3); //global mean of beta
+  target += normal_lpdf(gm[10] | 0, 3); //global mean of average HRV between beta
   
   target += normal_lpdf(gm[11] | -5.5,1.5); //global mean of lapse
 
-  target += normal_lpdf(gm[12] | 0,2); //global mean of lapse
+  target += normal_lpdf(gm[12] | 0,2); //global mean of difference between lapse
 
-  target += normal_lpdf(gm[13] | 0,2); //global mean of lapse
+  target += normal_lpdf(gm[13] | 0,2); //global mean of difference between lapse
 
 
+  #standardized subject level deviations (non-centered parameterization)
   target += std_normal_lpdf(to_vector(z_expo));
   
+  # between subject variances.
   target += normal_lpdf(tau_u[1] | 10, 10);
   target += normal_lpdf(tau_u[2] | 0, 10);
   target += normal_lpdf(tau_u[3] | 0, 10);
@@ -126,7 +128,9 @@ model{
   target += normal_lpdf(tau_u[12] | 0,3);
   target += normal_lpdf(tau_u[13] | 0,3);
   
+  # correlation matrix.
   target += lkj_corr_cholesky_lpdf(L_u | 2);
+  
 
 
 
