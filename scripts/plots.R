@@ -1815,9 +1815,10 @@ plot_s3 = function(){
            Drug = relevel(Drug, ref = "placebo"),
            Condition = drugs,
            Accuracy = factor(Resp, levels = c(1, 0), labels = c("Correct", "Incorrect"))
-    )
-  
-  
+    ) %>%
+    filter(!subject %in% c("sub_4049", "sub_4024"))
+
+
   # Cleaning RRST data
   RRST_trial_data <- clean_and_report(RRST_trial_data, "RRST_trial_data")
   
@@ -1883,12 +1884,12 @@ plot_s3 = function(){
            ResponseCorrect = factor(ResponseCorrect, levels = c("True", "False"), labels = c("Correct", "Incorrect")),
            BPM_scaled = scale(listenBPM),
            Condition = drugs
-    ) %>% 
-    filter(subject != "sub_4049")
-  
+    ) %>%
+    filter(!subject %in% c("sub_4049", "sub_4024"))
+
   # Cleaning HRD data
   HRD_trl_data <- clean_and_report(HRD_trl_data, "HRD_trl_data")
-  
+
   # HRD - Ordered beta regression confidence model
   HRD_conf_model <- glmmTMB(
     Conf ~ Drug * ResponseCorrect  + BPM_scaled +  (1  + ResponseCorrect + BPM_scaled | subject),
