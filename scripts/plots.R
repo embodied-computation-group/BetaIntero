@@ -1804,166 +1804,102 @@ plot_s2 = function(){
 }
 
 
-# Supp Figs 4 & 5 : group level plots of meta cognition model with raw data overlay:
+# Supp Fig: metacognition model fits (HRD + RRST)
 plot_s3 = function(){
-  
-  RRST_trial_data <- read_csv(here::here("data","cleaned","RRST.csv")) %>% 
+
+  GREEN <- "#1a9850"; RED <- "#d73027"
+  EXCL <- c("sub_4049", "sub_4024")
+  ctrl <- glmmTMBControl(optCtrl = list(iter.max = 1000, eval.max = 1000))
+
+  RRST <- read_csv(here::here("data","cleaned","RRST.csv"), show_col_types = FALSE) %>%
     filter(ConfResp >= 0 & ConfResp <= 100) %>%
-    mutate(Conf = ConfResp/100,
-           Stimulus = Stim,
-           Drug = factor(drugs, levels = c("PLACEBO", "PROP", "BISO"), labels = c("placebo", "propranolol", "bisoprolol")),
-           Drug = relevel(Drug, ref = "placebo"),
-           Condition = drugs,
-           Accuracy = factor(Resp, levels = c(1, 0), labels = c("Correct", "Incorrect"))
-    ) %>%
-    filter(!subject %in% c("sub_4049", "sub_4024"))
+    mutate(Conf = ConfResp/100, Stimulus = Stim,
+           Drug = relevel(factor(drugs, levels=c("PLACEBO","PROP","BISO"),
+                          labels=c("placebo","propranolol","bisoprolol")), ref="placebo"),
+           Accuracy = factor(Resp, levels=c(1,0), labels=c("Correct","Incorrect"))) %>%
+    filter(!subject %in% EXCL) %>% drop_na()
 
+  r_m <- glmmTMB(Conf ~ Stimulus * Accuracy + Drug * Accuracy + (1 + Stimulus + Accuracy | subject),
+                 data = RRST, family = ordbeta(), control = ctrl)
 
-  # Cleaning RRST data
-  RRST_trial_data <- clean_and_report(RRST_trial_data, "RRST_trial_data")
-  
-  
-  ## Models
-  
-  # RRST - Ordered beta regression confidence model
-  RRST_conf_model <- glmmTMB(
-    Conf ~ Stimulus + Drug * Accuracy + (1 + Stimulus + Accuracy | subject),
-    data = RRST_trial_data,
-    family = ordbeta(),
-    control = glmmTMBControl(optCtrl = list(iter.max = 1000, eval.max = 1000))
-  )
-  
-  # summarise effects
-  summary(RRST_conf_model)
-  
-  
-  ## plotting the estimated means and overlaying a grand average data.
-  P1 = (ggemmeans(RRST_conf_model, terms = c("Stimulus","Accuracy" ,"Drug")))
-  
-  
-  subj_data <- RRST_trial_data %>%
-    group_by(subject, Accuracy, Stimulus, Drug) %>%
-    summarize(mean_conf = mean(Conf), .groups = "drop") %>%
-    group_by(Accuracy, Stimulus, Drug) %>%
-    summarize(
-      mean = mean(mean_conf),
-      se = sd(mean_conf) / sqrt(n()),
-      q5 = mean - 2 * se,
-      q95 = mean + 2 * se,
-      .groups = "drop"
-    ) %>%
-    mutate(facet = Drug)
-  
-  
-  combined_plot_rrst = data.frame(P1) %>% 
-    mutate(Accuracy = as.factor(group)) %>% 
-    ggplot()+
-    geom_line(aes(x = x, y = predicted, ymin = conf.low,, ymax = conf.high, fill = Accuracy))+
-    geom_ribbon(aes(x = x, y = predicted, ymin = conf.low,, ymax = conf.high, fill = Accuracy), alpha = 0.25)+
-    geom_pointrange(data = subj_data, aes(x = Stimulus, y = mean, ymin = q5,ymax = q95, fill = as.factor(Accuracy)),
-                    shape = 21,
-                    col = "black", 
-                    position = position_dodge(width = 1))+
-    scale_color_manual(values = c("green","red"))+
-    scale_fill_manual(values = c("green","red"))+
-    facet_wrap(~facet)+
-    labs(x = "Stimulus intensity (% RRes)",
-         y = "P(Response = faster | % RRes)")+
-    scale_x_continuous(breaks = c(4.25,8.5,12.75,17), labels = c(25,50,75,100))+
-    theme_classic(base_size = 16)
-  
-  
-  ggsave(here::here("figures","revisions","Supplementary4_RRST.tiff"), combined_plot_rrst, width = 20, height = 10, units = "in", dpi = 400)
-  
-  
-  HRD_trl_data = read.csv(here::here("data","cleaned","HRD.csv")) %>% 
+  s_lo <- as.numeric(quantile(RRST$Stimulus, 0.025)); s_hi <- max(RRST$Stimulus)
+  RRSTd <- RRST %>% filter(Stimulus >= s_lo, Stimulus <= s_hi)
+  sseq <- seq(s_lo, s_hi, length.out = 60)
+  r_pred <- data.frame(ggemmeans(r_m, terms = c(sprintf("Stimulus [%s]", paste(round(sseq,3), collapse=",")),
+                                                "Accuracy","Drug"))) %>%
+    rename(Accuracy = group, Drug = facet)
+  r_brk <- unique(quantile(RRSTd$Stimulus, probs = seq(0,1,length.out=9)))
+  r_subj <- RRSTd %>%
+    mutate(bin = cut(Stimulus, breaks=r_brk, include.lowest=TRUE, labels=FALSE)) %>%
+    group_by(bin) %>% mutate(sb = mean(Stimulus)) %>% ungroup() %>%
+    group_by(subject, Accuracy, Drug, sb) %>% summarize(mc = mean(Conf), .groups="drop") %>%
+    group_by(Accuracy, Drug, sb) %>%
+    summarize(mean = mean(mc), se = sd(mc)/sqrt(n()), q5 = mean-2*se, q95 = mean+2*se, .groups="drop")
+  pct <- function(s) s/17*100
+
+  p_rrst <- ggplot() +
+    geom_line(data = r_pred, aes(pct(x), predicted, color = Accuracy)) +
+    geom_ribbon(data = r_pred, aes(pct(x), ymin = conf.low, ymax = conf.high, fill = Accuracy), alpha = 0.2) +
+    geom_pointrange(data = r_subj, aes(pct(sb), mean, ymin = q5, ymax = q95, fill = Accuracy),
+                    shape = 21, color = "black", position = position_dodge(width = 2)) +
+    scale_color_manual(values = c(Correct = GREEN, Incorrect = RED)) +
+    scale_fill_manual(values = c(Correct = GREEN, Incorrect = RED)) +
+    facet_wrap(~Drug) + coord_cartesian(ylim = c(0,1)) +
+    scale_x_continuous(breaks = seq(60,100,10)) +
+    labs(title = "Respiratory Resistance Sensitivity task (RRST)",
+         x = "Stimulus intensity (% RRes)", y = "Confidence") +
+    theme_classic(base_size = 13) +
+    theme(plot.title = element_text(face = "bold", size = 14))
+
+  HRD <- read.csv(here::here("data","cleaned","HRD.csv")) %>%
     mutate(Conf = Confidence/100,
-           drugs = as.factor(drugs),
-           Drug = factor(drugs, levels = c("PLACEBO", "PROP", "BISO"), labels = c("placebo", "propranolol", "bisoprolol")),
-           Drug = relevel(Drug, ref = "placebo"),
-           ResponseCorrect = factor(ResponseCorrect, levels = c("True", "False"), labels = c("Correct", "Incorrect")),
-           BPM_scaled = scale(listenBPM),
-           Condition = drugs
-    ) %>%
-    filter(!subject %in% c("sub_4049", "sub_4024"))
+           Drug = relevel(factor(drugs, levels=c("PLACEBO","PROP","BISO"),
+                          labels=c("placebo","propranolol","bisoprolol")), ref="placebo"),
+           ResponseCorrect = factor(ResponseCorrect, levels=c("True","False"), labels=c("Correct","Incorrect")),
+           BPM_scaled = scale(listenBPM)) %>%
+    filter(!subject %in% EXCL) %>% drop_na()
 
-  # Cleaning HRD data
-  HRD_trl_data <- clean_and_report(HRD_trl_data, "HRD_trl_data")
+  h_m <- glmmTMB(Conf ~ Drug * ResponseCorrect + BPM_scaled + (1 + ResponseCorrect + BPM_scaled | subject),
+                 data = HRD, family = ordbeta(), start = list(psi = c(0,1)), control = ctrl)
 
-  # HRD - Ordered beta regression confidence model
-  HRD_conf_model <- glmmTMB(
-    Conf ~ Drug * ResponseCorrect  + BPM_scaled +  (1  + ResponseCorrect + BPM_scaled | subject),
-    data = HRD_trl_data,
-    family = ordbeta(),
-    start = list(psi = c(0, 1)),
-    control = glmmTMBControl(optCtrl = list(iter.max = 1000, eval.max = 1000))
-  )
-  
-  summary(HRD_conf_model)
-  
-  p1  = (ggemmeans(HRD_conf_model, terms = c("ResponseCorrect" ,"Drug")))
-  
-  
-  breaks <- unique(quantile(HRD_trl_data$Alpha, probs = seq(0, 1, length.out = 9)))
-  
-  
-  
-  subj_data <-  HRD_trl_data %>% 
-    group_by(Drug) %>%
-    mutate(
-      bins = cut(Alpha, breaks = breaks, include.lowest = TRUE, labels = FALSE),
-      Alpha = sapply(bins, function(bin) mean(Alpha[bins == bin])),
-    )%>% 
-    # group_by(subject, ResponseCorrect, Drug, Alpha,bins) %>% 
-    mutate(Alpha_low = sapply(bins, function(bin) breaks[bin]),
-           Alpha_high = sapply(bins, function(bin) breaks[bin + 1])) %>% 
-    # mutate(Alpha = cut(Alpha,11))%>% 
-    group_by(subject, ResponseCorrect, Alpha, Drug) %>%
-    summarize(mean_conf = mean(Conf, na.rm = T), .groups = "drop") %>%
-    group_by(ResponseCorrect, Alpha, Drug) %>%
-    summarize(
-      mean = mean(mean_conf, na.rm = T),
-      se = sd(mean_conf, na.rm = T) / sqrt(n()),
-      q5 = mean - 2 * se,
-      q95 = mean + 2 * se,
-      .groups = "drop"
-    ) %>%
-    mutate(facet = Drug)
-  
-  
-  preds <- data.frame(p1) %>%
-    rename(
-      Accuracy = x,
-      facet = group
-    ) %>%
-    tidyr::crossing(x = seq(min(subj_data$Alpha)-1, max(subj_data$Alpha)+1, by = 5))
-  
-  # preds = data.frame(facet = c("placebo","placebo","propranolol","propranolol","bisoprolol","bisoprolol"),
-  #                    Accuracy = c("Correct","Incorrect","Correct","Incorrect","Correct","Incorrect"),
-  #                    predicted = c(0.61,0.51,0.64,0.52,0.66,0.53),
-  #                    conf.low = c(0.56,0.45,0.59,0.45,0.61,0.46),
-  #                    conf.high = c(0.65,0.58,0.68,0.58,0.70,0.60)) %>% mutate(x = list(seq(0,6,by = 1))) %>% unnest()
-  
-  
-  
-  combined_plot_hrd = subj_data %>% 
-    mutate(Accuracy = as.factor(ResponseCorrect)) %>% 
-    ggplot()+
-    geom_pointrange(aes(x = Alpha, y = mean, ymin = q5,ymax = q95, fill = Accuracy), col = "black", shape = 21, position = position_dodge(width = 5))+
-    geom_line(data = preds,aes(x = x, y = predicted, col = Accuracy))+
-    geom_ribbon(data = preds,aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high, fill = Accuracy), alpha = 0.25)+
-    scale_color_manual(values = c("green","red"))+
-    scale_fill_manual(values = c("green","red"))+
-    facet_wrap(~facet,scales = "free")+
-    theme_classic(base_size = 16)+
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-    labs(x =  "Binned Stimulus intensity (ΔBPM)",
-         y = "P(Response = faster | ΔBPM)")
-  
-  
-  ggsave(here::here("figures","revisions","Supplementary5_HRD.tiff"), combined_plot_hrd, width = 20, height = 10, units = "in", dpi = 400)
-  
-  
+  bmean <- attr(HRD$BPM_scaled, "scaled:center"); bsd <- attr(HRD$BPM_scaled, "scaled:scale")
+  b_lo <- as.numeric(quantile(HRD$listenBPM, 0.025)); b_hi <- as.numeric(quantile(HRD$listenBPM, 0.95))
+  HRDd <- HRD %>% filter(listenBPM >= b_lo, listenBPM <= b_hi)
+  bseq <- seq((b_lo-bmean)/bsd, (b_hi-bmean)/bsd, length.out = 80)
+  h_pred <- data.frame(ggemmeans(h_m, terms = c(sprintf("BPM_scaled [%s]", paste(round(bseq,4), collapse=",")),
+                                                "ResponseCorrect","Drug"))) %>%
+    rename(Accuracy = group, Drug = facet) %>% mutate(listenBPM = x*bsd + bmean)
+  h_brk <- unique(quantile(HRDd$listenBPM, probs = seq(0,1,length.out=9)))
+  h_subj <- HRDd %>%
+    mutate(bin = cut(listenBPM, breaks=h_brk, include.lowest=TRUE, labels=FALSE)) %>%
+    group_by(bin) %>% mutate(bb = mean(listenBPM)) %>% ungroup() %>%
+    group_by(subject, ResponseCorrect, Drug, bb) %>% summarize(mc = mean(Conf), .groups="drop") %>%
+    group_by(ResponseCorrect, Drug, bb) %>%
+    summarize(mean = mean(mc), se = sd(mc)/sqrt(n()), q5 = mean-2*se, q95 = mean+2*se, .groups="drop") %>%
+    rename(Accuracy = ResponseCorrect)
+
+  p_hrd <- ggplot() +
+    geom_line(data = h_pred, aes(listenBPM, predicted, color = Accuracy)) +
+    geom_ribbon(data = h_pred, aes(listenBPM, ymin = conf.low, ymax = conf.high, fill = Accuracy), alpha = 0.2) +
+    geom_pointrange(data = h_subj, aes(bb, mean, ymin = q5, ymax = q95, fill = Accuracy),
+                    shape = 21, color = "black", position = position_dodge(width = 2)) +
+    scale_color_manual(values = c(Correct = GREEN, Incorrect = RED)) +
+    scale_fill_manual(values = c(Correct = GREEN, Incorrect = RED)) +
+    facet_wrap(~Drug) + coord_cartesian(ylim = c(0,1), xlim = c(b_lo, b_hi)) +
+    scale_x_continuous(breaks = seq(45,80,5)) +
+    labs(title = "Heart Rate Discrimination task (HRD)",
+         x = "Listening-interval heart rate (BPM)", y = "Confidence") +
+    theme_classic(base_size = 13) +
+    theme(plot.title = element_text(face = "bold", size = 14))
+
+  combined <- (p_hrd / p_rrst) +
+    plot_layout(guides = "collect") +
+    plot_annotation(tag_levels = "A", title = "Metacognition Model Fits",
+                    theme = theme(plot.title = element_text(face = "bold", size = 16))) &
+    theme(legend.position = "right")
+
+  ggsave(here::here("figures","revisions","Supplementary_metacognition_modelfits.tiff"),
+         combined, width = 13, height = 9.5, units = "in", dpi = 400, compression = "lzw")
 }
 
 #plotting all marginal parameter estimates for all models:
